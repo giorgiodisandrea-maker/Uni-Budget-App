@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Uni Budget Calculator</title>
+</head>
+<body>
+
+<h1>Uni Budget Calculator</h1>
+
+<p>Student loan (per year):</p>
+<input id="loan" type="number">
+
+<p>Monthly wage:</p>
+<input id="wage" type="number">
+
+<p>Personal funds:</p>
+<input id="personal" type="number">
+
+<p>Select your university:</p>
+<select id="uni">
+  <option value="40">Manchester (£40 per night)</option>
+  <option value="45">Leeds (£45 per night)</option>
+  <option value="50">London (£50 per night)</option>
+  <option value="35">Nottingham (£35 per night)</option>
+</select>
+
+<p>Food preference:</p>
+<select id="food">
+  <option value="25">Bare minimum (£25/week)</option>
+  <option value="40">Balanced (£40/week)</option>
+  <option value="60">Premium (£60/week)</option>
+</select>
+
+<p>Nights out per week:</p>
+<input id="nights" type="number">
+
+<br><br>
+<button onclick="calculateBudget()">Calculate</button>
+
+<h2 id="result"></h2>
+<p id="tips"></p>
+
+<script>
+function calculateBudget() {
+  let loan = Number(document.getElementById("loan").value);
+  let wage = Number(document.getElementById("wage").value);
+  let personal = Number(document.getElementById("personal").value);
+  let nights = Number(document.getElementById("nights").value);
+
+  let weeklyLoan = loan / 52;
+  let weeklyWage = wage / 4;
+  let weeklyPersonal = personal / 52;
+
+  let weeklyIncome = weeklyLoan + weeklyWage + weeklyPersonal;
+
+  let uniNightCost = Number(document.getElementById("uni").value);
+  let nightOutCost = nights * uniNightCost;
+
+  let foodCost = Number(document.getElementById("food").value);
+
+  let weeklyBalance = weeklyIncome - nightOutCost - foodCost;
+
+  let message = "";
+
+  if (weeklyBalance < 0) {
+    let weeklyLoss = Math.abs(weeklyBalance);
+    let savings = loan + personal;
+    let weeksLeft = Math.floor(savings / weeklyLoss);
+    message = "🔴 Warning: You will run out of money in about " + weeksLeft + " weeks.";
+  } else if (weeklyBalance < 30) {
+    message = "🟠 Tight budget: you have little room for error.";
+  } else {
+    message = "🟢 Safe budget: you should be okay.";
+  }
+
+  document.getElementById("result").innerText =
+    message + " Weekly balance: £" + weeklyBalance.toFixed(2);
+
+  // 💡 MONEY-SAVING TIPS
+  let tips = "";
+
+  if (nights > 0) {
+    tips += "• 1 fewer night out saves £" + uniNightCost + " per week.<br>";
+  }
+
+  if (foodCost > 25) {
+    let cheaperFood = foodCost === 60 ? 40 : 25;
+    tips += "• Switching to cheaper food saves £" + (foodCost - cheaperFood) + " per week.<br>";
+  }
+
+  if (weeklyBalance < 30 && tips !== "") {
+    document.getElementById("tips").innerHTML =
+      "💡 <strong>Money-saving tips:</strong><br>" + tips;
+  } else {
+    document.getElementById("tips").innerHTML = "";
+  }
+}
+</script>
+
+</body>
+</html>
