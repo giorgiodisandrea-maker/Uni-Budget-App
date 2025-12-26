@@ -1,0 +1,22 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none"
+     xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Shield -->
+  <path
+    d="M12 14C12 11.8 13.8 10 16 10H48C50.2 10 52 11.8 52 14V34C52 45 32 54 32 54C32 54 12 45 12 34V14Z"
+    fill="#1e40af"
+  />
+
+  <!-- Graduation cap -->
+  <path
+    d="M20 26L32 20L44 26L32 32L20 26Z"
+    fill="white"
+  />
+  <path
+    d="M24 28V33C24 34.7 28 36 32 36C36 36 40 34.7 40 33V28"
+    stroke="white"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+
+</svg>
