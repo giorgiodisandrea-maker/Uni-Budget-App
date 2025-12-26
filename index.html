@@ -2,18 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Uni Budget Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Univio – Student Budgeting</title>
 
   <!-- Styles -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase (compat SDK – correct for plain HTML + GitHub Pages) -->
+  <!-- Firebase (compat SDK for plain HTML) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
 
   <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBnn-u991pW4m3En3AlmpIPCplZ9ev4TOA",
       authDomain: "uni-budget-app.firebaseapp.com",
@@ -24,107 +23,70 @@
     };
 
     firebase.initializeApp(firebaseConfig);
-    window.auth = firebase.auth(); // global for onclick handlers
+    window.auth = firebase.auth();
   </script>
 </head>
 
 <body>
-  <!-- Top navigation -->
+
+  <!-- TOP BAR (LOGO ALWAYS TOP-LEFT) -->
   <header class="topbar">
     <div class="brand">
-      <div class="logo">UB</div>
-      <div>
-        <div class="brand-title">Uni Budget</div>
-        <div class="brand-subtitle">Plan your week. Stay in control.</div>
-      </div>
+      <img src="logo.svg" alt="Univio logo" class="logo-img">
+      <span class="brand-name">Univio</span>
     </div>
 
     <nav class="nav">
       <button class="nav-link active" data-page="home">Home</button>
-      <button class="nav-link" data-page="calculator">Calculate budget</button>
+      <button class="nav-link" data-page="calculator">Calculate</button>
       <button class="nav-link" data-page="account">Account</button>
     </nav>
   </header>
 
+  <!-- MAIN CONTENT -->
   <main class="shell">
 
-    <!-- HOME -->
+    <!-- HOME PAGE -->
     <section id="page-home" class="page active">
-      <div class="card hero">
-        <h1>Budget smarter at uni.</h1>
+      <div class="card">
+        <h1>Student budgeting, simplified.</h1>
         <p class="muted">
-          Enter your income, subscriptions, university, and nights out. Get a weekly estimate and tips.
-          Sign in to save your settings later.
+          Univio helps you plan weekly spending using your loan, income,
+          subscriptions, and university city costs.
         </p>
 
-        <div class="hero-actions">
-          <button id="go-calc" class="primary">Calculate my budget</button>
-          <button id="go-account" class="secondary">Sign in</button>
-        </div>
-
-        <div class="stats">
-          <div class="stat">
-            <div class="stat-num">UK-wide</div>
-            <div class="stat-label">University coverage</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num">Weekly</div>
-            <div class="stat-label">Clear breakdown</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num">Minimal</div>
-            <div class="stat-label">No clutter</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="card">
-          <h2>What it does</h2>
-          <ul class="list">
-            <li>Uses your loan, wages, personal funds</li>
-            <li>Includes subscriptions (Netflix/Spotify/gym)</li>
-            <li>Estimates night-out cost by university city</li>
-            <li>Shows warnings + money-saving tips</li>
-          </ul>
-        </div>
-
-        <div class="card">
-          <h2>What’s next</h2>
-          <p class="muted">
-            Next upgrade: save budgets per account so users can come back and see their last saved plan.
-          </p>
+        <div class="home-actions">
+          <button class="primary" id="go-calc">Calculate my budget</button>
+          <button class="secondary" id="go-account">Sign in</button>
         </div>
       </div>
     </section>
 
-    <!-- CALCULATOR -->
+    <!-- CALCULATOR PAGE -->
     <section id="page-calculator" class="page">
       <div class="card">
-        <div class="page-title">
-          <h1>Calculate budget</h1>
-          <p class="muted">Weekly estimate based on your inputs.</p>
-        </div>
+        <h1>Calculate budget</h1>
+        <p class="muted">Weekly estimate based on your inputs.</p>
 
         <div class="form">
           <label>
             <span>Student loan (per year)</span>
-            <input id="loan" type="number" placeholder="e.g. 9000">
+            <input id="loan" type="number">
           </label>
 
           <label>
             <span>Monthly wage</span>
-            <input id="wage" type="number" placeholder="e.g. 450">
+            <input id="wage" type="number">
           </label>
 
           <label>
             <span>Personal funds</span>
-            <input id="personal" type="number" placeholder="e.g. 500">
+            <input id="personal" type="number">
           </label>
 
           <label>
             <span>Monthly subscriptions</span>
-            <input id="subscriptions" type="number" placeholder="e.g. 25">
+            <input id="subscriptions" type="number">
           </label>
 
           <label>
@@ -143,7 +105,7 @@
 
           <label>
             <span>Nights out per week</span>
-            <input id="nights" type="number" placeholder="e.g. 2">
+            <input id="nights" type="number">
           </label>
 
           <button class="primary" onclick="calculateBudget()">Calculate</button>
@@ -154,36 +116,31 @@
       </div>
     </section>
 
-    <!-- ACCOUNT -->
+    <!-- ACCOUNT PAGE -->
     <section id="page-account" class="page">
       <div class="card">
-        <div class="page-title">
-          <h1>Account</h1>
-          <p class="muted">Sign in to save your budget (we’ll add saving next).</p>
-        </div>
+        <h1>Account</h1>
+        <p class="muted">Sign in to manage your budget.</p>
 
-        <div class="account-box">
-          <div id="user-status" class="muted">Not signed in</div>
+        <p id="user-status" class="muted">Not signed in</p>
 
-          <div class="account-actions">
-            <button class="primary" onclick="loginWithGoogle()">Sign in with Google</button>
-            <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">Sign out</button>
-          </div>
-
-          <div class="muted small">
-            If you ever see “unauthorized domain”, add your GitHub Pages domain in Firebase → Authentication → Settings → Authorized domains.
-          </div>
+        <div class="account-actions">
+          <button class="primary" onclick="loginWithGoogle()">Sign in with Google</button>
+          <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">
+            Sign out
+          </button>
         </div>
       </div>
     </section>
 
   </main>
 
+  <!-- SCRIPTS -->
   <script>
-    /* ---------- AUTH ---------- */
+    /* AUTH */
     function loginWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).catch(err => alert(err.message));
+      auth.signInWithPopup(provider).catch(e => alert(e.message));
     }
 
     function logout() {
@@ -203,100 +160,79 @@
       }
     });
 
-    /* ---------- DATA ---------- */
+    /* DATA */
     let universities = [];
     let cityCosts = {};
 
     Promise.all([
       fetch("universities.json").then(r => r.json()),
       fetch("cityCosts.json").then(r => r.json())
-    ]).then(([uniData, cityData]) => {
-      universities = uniData;
-      cityCosts = cityData;
+    ]).then(([u, c]) => {
+      universities = u;
+      cityCosts = c;
 
       const uniSelect = document.getElementById("uni");
-      uniSelect.innerHTML = "";
-
-      universities.forEach((u, i) => {
-        const option = document.createElement("option");
-        option.value = i;
-        option.textContent = u.name;
-        uniSelect.appendChild(option);
+      universities.forEach((uni, i) => {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = uni.name;
+        uniSelect.appendChild(opt);
       });
-    }).catch(err => {
-      console.error(err);
-      const uniSelect = document.getElementById("uni");
-      uniSelect.innerHTML = "<option>Failed to load universities</option>";
     });
 
-    /* ---------- CALCULATOR ---------- */
+    /* CALCULATOR */
     function calculateBudget() {
-      const loan = Number(document.getElementById("loan").value) || 0;
-      const wage = Number(document.getElementById("wage").value) || 0;
-      const personal = Number(document.getElementById("personal").value) || 0;
-      const subscriptions = Number(document.getElementById("subscriptions").value) || 0;
-      const nights = Number(document.getElementById("nights").value) || 0;
+      const loan = Number(loan.value) || 0;
+      const wage = Number(wage.value) || 0;
+      const personal = Number(personal.value) || 0;
+      const subs = Number(subscriptions.value) || 0;
+      const nightsOut = Number(nights.value) || 0;
 
       const weeklyIncome = loan / 52 + wage / 4 + personal / 52;
-      const weeklySubscriptions = subscriptions / 4;
+      const weeklySubs = subs / 4;
 
-      const uniIndex = document.getElementById("uni").value;
-      const selectedUni = universities[uniIndex];
+      const uniObj = universities[uni.value];
+      if (!uniObj) return;
 
-      if (!selectedUni) {
-        document.getElementById("result").innerText = "Please select a university.";
-        document.getElementById("tips").innerHTML = "";
-        return;
-      }
+      const nightCost = cityCosts[uniObj.city] || 0;
+      const foodCost = Number(food.value) || 0;
 
-      const uniNightCost = cityCosts[selectedUni.city] ?? 0;
-      const foodCost = Number(document.getElementById("food").value) || 0;
+      const balance =
+        weeklyIncome - (nightsOut * nightCost) - foodCost - weeklySubs;
 
-      const weeklyBalance = weeklyIncome - (nights * uniNightCost) - foodCost - weeklySubscriptions;
+      result.innerText =
+        (balance < 0 ? "🔴 Overspending" :
+         balance < 30 ? "🟠 Tight budget" :
+         "🟢 Safe budget") +
+        " – Weekly balance £" + balance.toFixed(2);
 
-      let message =
-        weeklyBalance < 0 ? "🔴 You are overspending." :
-        weeklyBalance < 30 ? "🟠 Tight budget." :
-        "🟢 Safe budget.";
-
-      document.getElementById("result").innerText =
-        message + " Weekly balance: £" + weeklyBalance.toFixed(2);
-
-      // Tips
-      let tipsText = "";
-
-      if (weeklySubscriptions > 10) {
-        tipsText += "• Cancelling unused subscriptions could save £" + weeklySubscriptions.toFixed(2) + " per week.<br>";
-      }
-      if (nights > 0 && uniNightCost > 0) {
-        tipsText += "• One fewer night out saves about £" + uniNightCost + " per week.<br>";
-      }
-      if (foodCost > 25) {
-        const cheaperFood = (foodCost === 60) ? 40 : 25;
-        tipsText += "• Cheaper food choice saves £" + (foodCost - cheaperFood) + " per week.<br>";
-      }
-
-      document.getElementById("tips").innerHTML =
-        (weeklyBalance < 30 && tipsText) ? "💡 <strong>Money-saving tips:</strong><br>" + tipsText : "";
+      tips.innerHTML =
+        balance < 30
+          ? "💡 Reduce nights out or subscriptions to improve balance."
+          : "";
     }
 
-    /* ---------- NAVIGATION ---------- */
+    /* NAVIGATION */
     const pages = ["home", "calculator", "account"];
-    const navLinks = document.querySelectorAll(".nav-link");
+    document.querySelectorAll(".nav-link").forEach(btn => {
+      btn.addEventListener("click", () => showPage(btn.dataset.page));
+    });
 
-    function showPage(name) {
-      pages.forEach(p => {
-        document.getElementById(`page-${p}`).classList.toggle("active", p === name);
-      });
-      navLinks.forEach(btn => btn.classList.toggle("active", btn.dataset.page === name));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    function showPage(p) {
+      pages.forEach(x =>
+        document.getElementById("page-" + x).classList.toggle("active", x === p)
+      );
+      document.querySelectorAll(".nav-link").forEach(b =>
+        b.classList.toggle("active", b.dataset.page === p)
+      );
+      window.scrollTo(0, 0);
     }
 
-    navLinks.forEach(btn => btn.addEventListener("click", () => showPage(btn.dataset.page)));
-
-    document.getElementById("go-calc").addEventListener("click", () => showPage("calculator"));
-    document.getElementById("go-account").addEventListener("click", () => showPage("account"));
+    document.getElementById("go-calc").onclick = () => showPage("calculator");
+    document.getElementById("go-account").onclick = () => showPage("account");
   </script>
+
 </body>
 </html>
+
 
