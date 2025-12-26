@@ -33,9 +33,21 @@ input, select {
 }
 
 button {
+
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
   background: #0f172a;
+  color: white;              /* 👈 THIS IS THE FIX */
+  border: none;
   border-radius: 12px;
+  font-size: 15px;
   font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #020617;
 }
 
 button:hover {
