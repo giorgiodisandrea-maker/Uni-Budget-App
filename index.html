@@ -17,12 +17,7 @@
 <input id="personal" type="number">
 
 <p>Select your university:</p>
-<select id="uni">
-  <option value="40">Manchester (£40 per night)</option>
-  <option value="45">Leeds (£45 per night)</option>
-  <option value="50">London (£50 per night)</option>
-  <option value="35">Nottingham (£35 per night)</option>
-</select>
+<select id="uni"></select>
 
 <p>Food preference:</p>
 <select id="food">
@@ -41,6 +36,28 @@
 <p id="tips"></p>
 
 <script>
+let universities = [];
+let cityCosts = {};
+
+// Load university + city cost data
+Promise.all([
+  fetch("universities.json").then(res => res.json()),
+  fetch("cityCosts.json").then(res => res.json())
+]).then(([uniData, cityData]) => {
+  universities = uniData;
+  cityCosts = cityData;
+
+  const uniSelect = document.getElementById("uni");
+
+  universities.forEach((u, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = u.name;
+    uniSelect.appendChild(option);
+  });
+});
+
+// Main calculation
 function calculateBudget() {
   let loan = Number(document.getElementById("loan").value);
   let wage = Number(document.getElementById("wage").value);
@@ -53,9 +70,10 @@ function calculateBudget() {
 
   let weeklyIncome = weeklyLoan + weeklyWage + weeklyPersonal;
 
-  let uniNightCost = Number(document.getElementById("uni").value);
-  let nightOutCost = nights * uniNightCost;
+  let selectedUni = universities[document.getElementById("uni").value];
+  let uniNightCost = cityCosts[selectedUni.city];
 
+  let nightOutCost = nights * uniNightCost;
   let foodCost = Number(document.getElementById("food").value);
 
   let weeklyBalance = weeklyIncome - nightOutCost - foodCost;
@@ -76,7 +94,7 @@ function calculateBudget() {
   document.getElementById("result").innerText =
     message + " Weekly balance: £" + weeklyBalance.toFixed(2);
 
-  // 💡 MONEY-SAVING TIPS
+  // Money-saving tips
   let tips = "";
 
   if (nights > 0) {
