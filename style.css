@@ -53,28 +53,38 @@ select:focus {
   box-shadow: 0 0 0 1px #1e40af;
 }
 
-/* ---------- Buttons (OPTION 1) ---------- */
+/* ---------- Buttons (FIXED) ---------- */
 button {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
   width: 100%;
   padding: 12px;
   margin-top: 20px;
-  background: #1e40af;              /* fintech blue */
+
+  background-color: #1e40af;
   color: #ffffff;
+
   border: none;
   border-radius: 12px;
+
   font-size: 15px;
   font-weight: 600;
+
   cursor: pointer;
+
   box-shadow: 0 6px 14px rgba(30, 64, 175, 0.35);
-  transition: background 0.2s ease, transform 0.1s ease;
+
+  transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 button:hover {
-  background: #1d4ed8;
+  background-color: #1d4ed8;
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
 /* ---------- Result output ---------- */
@@ -105,7 +115,7 @@ button:active {
   color: #475569;
 }
 
-/* ---------- Mobile optimisation ---------- */
+/* ---------- Mobile ---------- */
 @media (max-width: 500px) {
   .container {
     margin: 20px;
