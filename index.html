@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Univio – Student Budgeting</title>
 
-  <!-- Styles -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase (compat SDK for plain HTML) -->
+  <!-- Firebase (compat SDK for plain HTML + GitHub Pages) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -24,12 +24,12 @@
 
     firebase.initializeApp(firebaseConfig);
     window.auth = firebase.auth();
+    window.db = firebase.firestore();
   </script>
 </head>
 
 <body>
-
-  <!-- TOP BAR (LOGO ALWAYS TOP-LEFT) -->
+  <!-- TOP BAR -->
   <header class="topbar">
     <div class="brand">
       <img src="logo.svg" alt="Univio logo" class="logo-img">
@@ -43,16 +43,14 @@
     </nav>
   </header>
 
-  <!-- MAIN CONTENT -->
   <main class="shell">
-
-    <!-- HOME PAGE -->
+    <!-- HOME -->
     <section id="page-home" class="page active">
       <div class="card">
         <h1>Student budgeting, simplified.</h1>
         <p class="muted">
-          Univio helps you plan weekly spending using your loan, income,
-          subscriptions, and university city costs.
+          Plan your week using your income, subscriptions, university city costs, and nights out.
+          Sign in to save your budget.
         </p>
 
         <div class="home-actions">
@@ -62,7 +60,7 @@
       </div>
     </section>
 
-    <!-- CALCULATOR PAGE -->
+    <!-- CALCULATOR -->
     <section id="page-calculator" class="page">
       <div class="card">
         <h1>Calculate budget</h1>
@@ -112,32 +110,42 @@
 
           <div id="result" class="output"></div>
           <div id="tips" class="output tips"></div>
+
+          <!-- Save button (only works if signed in) -->
+          <button class="secondary" id="saveBudgetBtn" onclick="saveBudget()" disabled>
+            Save this budget to my account
+          </button>
+          <p class="muted small" id="saveHint">Sign in to save your budget.</p>
         </div>
       </div>
     </section>
 
-    <!-- ACCOUNT PAGE -->
+    <!-- ACCOUNT -->
     <section id="page-account" class="page">
       <div class="card">
         <h1>Account</h1>
-        <p class="muted">Sign in to manage your budget.</p>
+        <p class="muted">Sign in to save and reload your budget.</p>
 
         <p id="user-status" class="muted">Not signed in</p>
 
         <div class="account-actions">
           <button class="primary" onclick="loginWithGoogle()">Sign in with Google</button>
-          <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">
-            Sign out
+          <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">Sign out</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <button class="secondary" id="loadBudgetBtn" onclick="loadLastBudget()" disabled>
+            Load my last saved budget
           </button>
+          <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
+          <p class="muted small" id="loadStatus"></p>
         </div>
       </div>
     </section>
-
   </main>
 
-  <!-- SCRIPTS -->
   <script>
-    /* AUTH */
+    /* ---------- AUTH ---------- */
     function loginWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch(e => alert(e.message));
@@ -147,20 +155,42 @@
       auth.signOut();
     }
 
+    let currentUser = null;
+
     auth.onAuthStateChanged(user => {
+      currentUser = user || null;
+
       const status = document.getElementById("user-status");
       const logoutBtn = document.getElementById("logoutBtn");
+
+      const saveBtn = document.getElementById("saveBudgetBtn");
+      const saveHint = document.getElementById("saveHint");
+
+      const loadBtn = document.getElementById("loadBudgetBtn");
+      const loadHint = document.getElementById("loadHint");
 
       if (user) {
         status.innerText = "Signed in as " + user.displayName;
         logoutBtn.style.display = "inline-block";
+
+        saveBtn.disabled = false;
+        saveHint.innerText = "You can save budgets to your account.";
+
+        loadBtn.disabled = false;
+        loadHint.innerText = "Load your last saved budget anytime.";
       } else {
         status.innerText = "Not signed in";
         logoutBtn.style.display = "none";
+
+        saveBtn.disabled = true;
+        saveHint.innerText = "Sign in to save your budget.";
+
+        loadBtn.disabled = true;
+        loadHint.innerText = "Sign in to load saved budgets.";
       }
     });
 
-    /* DATA */
+    /* ---------- DATA (universities + city costs) ---------- */
     let universities = [];
     let cityCosts = {};
 
@@ -172,47 +202,169 @@
       cityCosts = c;
 
       const uniSelect = document.getElementById("uni");
-      universities.forEach((uni, i) => {
+      uniSelect.innerHTML = "";
+
+      universities.forEach((uniObj, i) => {
         const opt = document.createElement("option");
         opt.value = i;
-        opt.textContent = uni.name;
+        opt.textContent = uniObj.name;
         uniSelect.appendChild(opt);
       });
+    }).catch(err => {
+      console.error(err);
+      document.getElementById("uni").innerHTML = "<option>Failed to load universities</option>";
     });
 
-    /* CALCULATOR */
-    function calculateBudget() {
-      const loan = Number(loan.value) || 0;
-      const wage = Number(wage.value) || 0;
-      const personal = Number(personal.value) || 0;
-      const subs = Number(subscriptions.value) || 0;
-      const nightsOut = Number(nights.value) || 0;
+    /* ---------- CALCULATOR ---------- */
+    let lastCalculated = null;
 
-      const weeklyIncome = loan / 52 + wage / 4 + personal / 52;
-      const weeklySubs = subs / 4;
+    function calculateBudget() {
+      const loanVal = Number(loan.value) || 0;
+      const wageVal = Number(wage.value) || 0;
+      const personalVal = Number(personal.value) || 0;
+      const subsVal = Number(subscriptions.value) || 0;
+      const nightsVal = Number(nights.value) || 0;
+
+      const weeklyIncome = loanVal / 52 + wageVal / 4 + personalVal / 52;
+      const weeklySubs = subsVal / 4;
 
       const uniObj = universities[uni.value];
-      if (!uniObj) return;
+      if (!uniObj) {
+        result.innerText = "Please select a university.";
+        tips.innerHTML = "";
+        lastCalculated = null;
+        return;
+      }
 
       const nightCost = cityCosts[uniObj.city] || 0;
       const foodCost = Number(food.value) || 0;
 
-      const balance =
-        weeklyIncome - (nightsOut * nightCost) - foodCost - weeklySubs;
+      const balance = weeklyIncome - (nightsVal * nightCost) - foodCost - weeklySubs;
 
-      result.innerText =
-        (balance < 0 ? "🔴 Overspending" :
-         balance < 30 ? "🟠 Tight budget" :
-         "🟢 Safe budget") +
-        " – Weekly balance £" + balance.toFixed(2);
+      const status =
+        balance < 0 ? "🔴 Overspending" :
+        balance < 30 ? "🟠 Tight budget" :
+        "🟢 Safe budget";
 
-      tips.innerHTML =
-        balance < 30
-          ? "💡 Reduce nights out or subscriptions to improve balance."
-          : "";
+      result.innerText = `${status} – Weekly balance £${balance.toFixed(2)}`;
+
+      let tipsText = "";
+      if (weeklySubs > 10) tipsText += `• Subscriptions cost ~£${weeklySubs.toFixed(2)} per week.<br>`;
+      if (nightsVal > 0 && nightCost > 0) tipsText += `• One fewer night out saves about £${nightCost} per week.<br>`;
+      if (foodCost > 25) {
+        const cheaperFood = (foodCost === 60) ? 40 : 25;
+        tipsText += `• Cheaper food choice saves £${(foodCost - cheaperFood)} per week.<br>`;
+      }
+
+      tips.innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
+
+      // store last calculation so we can save it
+      lastCalculated = {
+        createdAt: new Date().toISOString(),
+        inputs: {
+          loanPerYear: loanVal,
+          wagePerMonth: wageVal,
+          personalFunds: personalVal,
+          subscriptionsPerMonth: subsVal,
+          nightsOutPerWeek: nightsVal,
+          foodPerWeek: foodCost,
+          uniIndex: Number(uni.value),
+          uniName: uniObj.name,
+          city: uniObj.city
+        },
+        derived: {
+          nightCostPerNight: nightCost,
+          weeklyIncome: Number(weeklyIncome.toFixed(2)),
+          weeklySubscriptions: Number(weeklySubs.toFixed(2)),
+          weeklyBalance: Number(balance.toFixed(2))
+        }
+      };
     }
 
-    /* NAVIGATION */
+    /* ---------- SAVE TO FIRESTORE ---------- */
+    async function saveBudget() {
+      if (!currentUser) {
+        alert("Please sign in to save your budget.");
+        return;
+      }
+      if (!lastCalculated) {
+        alert("Calculate your budget first, then save it.");
+        return;
+      }
+
+      try {
+        const uid = currentUser.uid;
+
+        // Save as a new document in /users/{uid}/budgets
+        await db.collection("users")
+          .doc(uid)
+          .collection("budgets")
+          .add({
+            ...lastCalculated,
+            savedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+        alert("Saved! ✅ Your budget is now stored in your account.");
+      } catch (e) {
+        console.error(e);
+        alert("Saving failed: " + e.message);
+      }
+    }
+
+    /* ---------- LOAD LAST SAVED BUDGET ---------- */
+    async function loadLastBudget() {
+      const statusEl = document.getElementById("loadStatus");
+      statusEl.innerText = "";
+
+      if (!currentUser) {
+        alert("Please sign in to load saved budgets.");
+        return;
+      }
+
+      try {
+        statusEl.innerText = "Loading…";
+
+        const uid = currentUser.uid;
+        const snap = await db.collection("users")
+          .doc(uid)
+          .collection("budgets")
+          .orderBy("savedAt", "desc")
+          .limit(1)
+          .get();
+
+        if (snap.empty) {
+          statusEl.innerText = "No saved budgets yet.";
+          return;
+        }
+
+        const data = snap.docs[0].data();
+
+        // Restore inputs
+        loan.value = data.inputs.loanPerYear ?? 0;
+        wage.value = data.inputs.wagePerMonth ?? 0;
+        personal.value = data.inputs.personalFunds ?? 0;
+        subscriptions.value = data.inputs.subscriptionsPerMonth ?? 0;
+        nights.value = data.inputs.nightsOutPerWeek ?? 0;
+        food.value = data.inputs.foodPerWeek ?? 25;
+
+        // Uni restore (by index if possible)
+        if (typeof data.inputs.uniIndex === "number") {
+          uni.value = data.inputs.uniIndex;
+        }
+
+        // Recalculate to refresh outputs
+        calculateBudget();
+
+        statusEl.innerText = "Loaded your last saved budget ✅";
+        showPage("calculator");
+      } catch (e) {
+        console.error(e);
+        statusEl.innerText = "";
+        alert("Load failed: " + e.message);
+      }
+    }
+
+    /* ---------- NAVIGATION ---------- */
     const pages = ["home", "calculator", "account"];
     document.querySelectorAll(".nav-link").forEach(btn => {
       btn.addEventListener("click", () => showPage(btn.dataset.page));
@@ -231,8 +383,8 @@
     document.getElementById("go-calc").onclick = () => showPage("calculator");
     document.getElementById("go-account").onclick = () => showPage("account");
   </script>
-
 </body>
 </html>
+
 
 
