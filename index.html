@@ -44,18 +44,23 @@
   </header>
 
   <main class="shell">
+
     <!-- HOME -->
     <section id="page-home" class="page active">
       <div class="card">
         <h1>Student budgeting, simplified.</h1>
         <p class="muted">
-          Plan your week using your income, subscriptions, university city costs, and nights out.
-          Sign in to save your budget.
+          Plan your week using income, subscriptions, university city costs, and nights out.
+          Sign in to save and reload budgets.
         </p>
 
         <div class="home-actions">
           <button class="primary" id="go-calc">Calculate my budget</button>
           <button class="secondary" id="go-account">Sign in</button>
+        </div>
+
+        <div class="notice">
+          <strong>Tip:</strong> After you calculate, hit <strong>Save</strong>. When you return and sign in, Univio can auto-load your last budget.
         </div>
       </div>
     </section>
@@ -63,28 +68,33 @@
     <!-- CALCULATOR -->
     <section id="page-calculator" class="page">
       <div class="card">
-        <h1>Calculate budget</h1>
-        <p class="muted">Weekly estimate based on your inputs.</p>
+        <div class="row-between">
+          <div>
+            <h1>Calculate budget</h1>
+            <p class="muted">Weekly estimate based on your inputs.</p>
+          </div>
+          <div class="pill" id="premiumPill" style="display:none;">Premium</div>
+        </div>
 
         <div class="form">
           <label>
             <span>Student loan (per year)</span>
-            <input id="loan" type="number">
+            <input id="loan" type="number" placeholder="e.g. 9000">
           </label>
 
           <label>
             <span>Monthly wage</span>
-            <input id="wage" type="number">
+            <input id="wage" type="number" placeholder="e.g. 450">
           </label>
 
           <label>
             <span>Personal funds</span>
-            <input id="personal" type="number">
+            <input id="personal" type="number" placeholder="e.g. 500">
           </label>
 
           <label>
             <span>Monthly subscriptions</span>
-            <input id="subscriptions" type="number">
+            <input id="subscriptions" type="number" placeholder="e.g. 25">
           </label>
 
           <label>
@@ -103,7 +113,7 @@
 
           <label>
             <span>Nights out per week</span>
-            <input id="nights" type="number">
+            <input id="nights" type="number" placeholder="e.g. 2">
           </label>
 
           <button class="primary" onclick="calculateBudget()">Calculate</button>
@@ -111,7 +121,47 @@
           <div id="result" class="output"></div>
           <div id="tips" class="output tips"></div>
 
-          <!-- Save button (only works if signed in) -->
+          <!-- Premium Insights (gated) -->
+          <div class="card-lite" id="insightsBox">
+            <div class="row-between">
+              <strong>Spending breakdown</strong>
+              <span class="muted small" id="insightsGateLabel">Premium feature</span>
+            </div>
+
+            <div id="insightsLocked" class="muted small">
+              Upgrade to Premium to see a full breakdown + smart insights.
+            </div>
+
+            <div id="insights" style="display:none;">
+              <div class="bar-row">
+                <div class="bar-label">Nights out</div>
+                <div class="bar-track"><div class="bar-fill" id="barNights"></div></div>
+                <div class="bar-value" id="valNights"></div>
+              </div>
+
+              <div class="bar-row">
+                <div class="bar-label">Food</div>
+                <div class="bar-track"><div class="bar-fill" id="barFood"></div></div>
+                <div class="bar-value" id="valFood"></div>
+              </div>
+
+              <div class="bar-row">
+                <div class="bar-label">Subscriptions</div>
+                <div class="bar-track"><div class="bar-fill" id="barSubs"></div></div>
+                <div class="bar-value" id="valSubs"></div>
+              </div>
+
+              <div class="bar-row">
+                <div class="bar-label">Money left</div>
+                <div class="bar-track"><div class="bar-fill" id="barLeft"></div></div>
+                <div class="bar-value" id="valLeft"></div>
+              </div>
+
+              <div class="muted small" id="insightText"></div>
+            </div>
+          </div>
+
+          <!-- Save -->
           <button class="secondary" id="saveBudgetBtn" onclick="saveBudget()" disabled>
             Save this budget to my account
           </button>
@@ -123,8 +173,13 @@
     <!-- ACCOUNT -->
     <section id="page-account" class="page">
       <div class="card">
-        <h1>Account</h1>
-        <p class="muted">Sign in to save and reload your budget.</p>
+        <div class="row-between">
+          <div>
+            <h1>Account</h1>
+            <p class="muted">Sign in to save, reload, and manage your preferences.</p>
+          </div>
+          <div class="pill" id="premiumPillAccount" style="display:none;">Premium</div>
+        </div>
 
         <p id="user-status" class="muted">Not signed in</p>
 
@@ -133,15 +188,84 @@
           <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">Sign out</button>
         </div>
 
-        <div style="margin-top:14px;">
-          <button class="secondary" id="loadBudgetBtn" onclick="loadLastBudget()" disabled>
-            Load my last saved budget
+        <div class="divider"></div>
+
+        <!-- Preferences -->
+        <h2>Preferences</h2>
+        <p class="muted small">Saved to your account and used to auto-fill the calculator.</p>
+
+        <div class="form">
+          <label>
+            <span>Default university</span>
+            <select id="prefUni"></select>
+          </label>
+
+          <label>
+            <span>Default food preference</span>
+            <select id="prefFood">
+              <option value="25">Bare minimum (£25/week)</option>
+              <option value="40">Balanced (£40/week)</option>
+              <option value="60">Premium (£60/week)</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Typical nights out per week</span>
+            <input id="prefNights" type="number" placeholder="e.g. 2">
+          </label>
+
+          <label>
+            <span>Typical subscriptions per month</span>
+            <input id="prefSubs" type="number" placeholder="e.g. 25">
+          </label>
+
+          <button class="secondary" id="saveProfileBtn" onclick="saveProfile()" disabled>
+            Save preferences
           </button>
-          <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
-          <p class="muted small" id="loadStatus"></p>
+
+          <p class="muted small" id="profileHint">Sign in to save preferences.</p>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Budgets -->
+        <h2>Budgets</h2>
+
+        <button class="secondary" id="loadBudgetBtn" onclick="loadLastBudget(true)" disabled>
+          Load my last saved budget
+        </button>
+        <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
+        <p class="muted small" id="loadStatus"></p>
+
+        <!-- History (premium) -->
+        <div class="card-lite" style="margin-top:14px;">
+          <div class="row-between">
+            <strong>Budget history</strong>
+            <span class="muted small" id="historyGateLabel">Premium feature</span>
+          </div>
+
+          <div id="historyLocked" class="muted small">
+            Upgrade to Premium to see all saved budgets and quick-load any one.
+          </div>
+
+          <div id="history" style="display:none;">
+            <div id="historyList" class="history-list"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Premium -->
+        <h2>Premium</h2>
+        <p class="muted small">
+          Premium unlocks insights + budget history. Payments can be added later — for now you can manually toggle Premium in Firestore.
+        </p>
+        <div class="notice">
+          <strong>How to turn Premium on:</strong> Firestore → Document <code>users/&lt;uid&gt;</code> → set <code>premium</code> to <code>true</code>.
         </div>
       </div>
     </section>
+
   </main>
 
   <script>
@@ -156,10 +280,12 @@
     }
 
     let currentUser = null;
+    let isPremium = false;
 
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async (user) => {
       currentUser = user || null;
 
+      // UI toggles
       const status = document.getElementById("user-status");
       const logoutBtn = document.getElementById("logoutBtn");
 
@@ -168,6 +294,9 @@
 
       const loadBtn = document.getElementById("loadBudgetBtn");
       const loadHint = document.getElementById("loadHint");
+
+      const saveProfileBtn = document.getElementById("saveProfileBtn");
+      const profileHint = document.getElementById("profileHint");
 
       if (user) {
         status.innerText = "Signed in as " + user.displayName;
@@ -178,6 +307,9 @@
 
         loadBtn.disabled = false;
         loadHint.innerText = "Load your last saved budget anytime.";
+
+        saveProfileBtn.disabled = false;
+        profileHint.innerText = "Preferences will sync to your account.";
       } else {
         status.innerText = "Not signed in";
         logoutBtn.style.display = "none";
@@ -187,8 +319,44 @@
 
         loadBtn.disabled = true;
         loadHint.innerText = "Sign in to load saved budgets.";
+
+        saveProfileBtn.disabled = true;
+        profileHint.innerText = "Sign in to save preferences.";
+
+        // reset gating visuals
+        setPremium(false);
+        return;
+      }
+
+      // Load profile (and premium flag)
+      await loadProfile();
+
+      // Auto-load last budget after sign in (silent)
+      await loadLastBudget(false);
+
+      // If premium, refresh history
+      if (isPremium) {
+        await loadBudgetHistory();
       }
     });
+
+    function setPremium(enabled) {
+      isPremium = !!enabled;
+
+      // Pills
+      document.getElementById("premiumPill").style.display = isPremium ? "inline-flex" : "none";
+      document.getElementById("premiumPillAccount").style.display = isPremium ? "inline-flex" : "none";
+
+      // Insights gating
+      document.getElementById("insightsGateLabel").innerText = isPremium ? "Unlocked" : "Premium feature";
+      document.getElementById("insightsLocked").style.display = isPremium ? "none" : "block";
+      document.getElementById("insights").style.display = isPremium ? "block" : "none";
+
+      // History gating
+      document.getElementById("historyGateLabel").innerText = isPremium ? "Unlocked" : "Premium feature";
+      document.getElementById("historyLocked").style.display = isPremium ? "none" : "block";
+      document.getElementById("history").style.display = isPremium ? "block" : "none";
+    }
 
     /* ---------- DATA (universities + city costs) ---------- */
     let universities = [];
@@ -201,19 +369,105 @@
       universities = u;
       cityCosts = c;
 
+      // Calculator dropdown
       const uniSelect = document.getElementById("uni");
       uniSelect.innerHTML = "";
 
+      // Preferences dropdown
+      const prefUniSelect = document.getElementById("prefUni");
+      prefUniSelect.innerHTML = "";
+
       universities.forEach((uniObj, i) => {
-        const opt = document.createElement("option");
-        opt.value = i;
-        opt.textContent = uniObj.name;
-        uniSelect.appendChild(opt);
+        const opt1 = document.createElement("option");
+        opt1.value = i;
+        opt1.textContent = uniObj.name;
+        uniSelect.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = i;
+        opt2.textContent = uniObj.name;
+        prefUniSelect.appendChild(opt2);
       });
     }).catch(err => {
       console.error(err);
       document.getElementById("uni").innerHTML = "<option>Failed to load universities</option>";
+      document.getElementById("prefUni").innerHTML = "<option>Failed to load universities</option>";
     });
+
+    /* ---------- PROFILE ---------- */
+    async function loadProfile() {
+      if (!currentUser) return;
+
+      const uid = currentUser.uid;
+      const userDocRef = db.collection("users").doc(uid);
+
+      const snap = await userDocRef.get();
+      const data = snap.exists ? snap.data() : null;
+
+      // Default profile if missing
+      const profile = data?.profile || {};
+      const premiumFlag = !!data?.premium;
+
+      setPremium(premiumFlag);
+
+      // Fill preference fields
+      if (typeof profile.defaultUniIndex === "number") prefUni.value = profile.defaultUniIndex;
+      if (profile.defaultFood) prefFood.value = profile.defaultFood;
+      if (typeof profile.defaultNights === "number") prefNights.value = profile.defaultNights;
+      if (typeof profile.defaultSubscriptions === "number") prefSubs.value = profile.defaultSubscriptions;
+
+      // Also apply to calculator if empty
+      applyPreferencesToCalculator(profile, { onlyIfEmpty: true });
+    }
+
+    async function saveProfile() {
+      if (!currentUser) {
+        alert("Please sign in to save preferences.");
+        return;
+      }
+
+      const uid = currentUser.uid;
+      const userDocRef = db.collection("users").doc(uid);
+
+      const profile = {
+        defaultUniIndex: Number(prefUni.value),
+        defaultFood: Number(prefFood.value),
+        defaultNights: Number(prefNights.value) || 0,
+        defaultSubscriptions: Number(prefSubs.value) || 0,
+        updatedAt: new Date().toISOString()
+      };
+
+      try {
+        await userDocRef.set(
+          { profile },
+          { merge: true }
+        );
+
+        // Apply immediately
+        applyPreferencesToCalculator(profile, { onlyIfEmpty: false });
+        alert("Preferences saved ✅");
+      } catch (e) {
+        console.error(e);
+        alert("Saving preferences failed: " + e.message);
+      }
+    }
+
+    function applyPreferencesToCalculator(profile, opts) {
+      const onlyIfEmpty = !!opts.onlyIfEmpty;
+
+      if (typeof profile.defaultUniIndex === "number") {
+        if (!onlyIfEmpty || uni.value === "" || uni.value == null) uni.value = profile.defaultUniIndex;
+      }
+      if (profile.defaultFood != null) {
+        if (!onlyIfEmpty || food.value === "" || food.value == null) food.value = profile.defaultFood;
+      }
+      if (typeof profile.defaultNights === "number") {
+        if (!onlyIfEmpty || !nights.value) nights.value = profile.defaultNights;
+      }
+      if (typeof profile.defaultSubscriptions === "number") {
+        if (!onlyIfEmpty || !subscriptions.value) subscriptions.value = profile.defaultSubscriptions;
+      }
+    }
 
     /* ---------- CALCULATOR ---------- */
     let lastCalculated = null;
@@ -239,7 +493,8 @@
       const nightCost = cityCosts[uniObj.city] || 0;
       const foodCost = Number(food.value) || 0;
 
-      const balance = weeklyIncome - (nightsVal * nightCost) - foodCost - weeklySubs;
+      const nightTotal = nightsVal * nightCost;
+      const balance = weeklyIncome - nightTotal - foodCost - weeklySubs;
 
       const status =
         balance < 0 ? "🔴 Overspending" :
@@ -248,6 +503,7 @@
 
       result.innerText = `${status} – Weekly balance £${balance.toFixed(2)}`;
 
+      // Tips (free)
       let tipsText = "";
       if (weeklySubs > 10) tipsText += `• Subscriptions cost ~£${weeklySubs.toFixed(2)} per week.<br>`;
       if (nightsVal > 0 && nightCost > 0) tipsText += `• One fewer night out saves about £${nightCost} per week.<br>`;
@@ -255,10 +511,32 @@
         const cheaperFood = (foodCost === 60) ? 40 : 25;
         tipsText += `• Cheaper food choice saves £${(foodCost - cheaperFood)} per week.<br>`;
       }
-
       tips.innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
 
-      // store last calculation so we can save it
+      // Premium insights (only show if premium)
+      if (isPremium) {
+        const spent = Math.max(nightTotal + foodCost + weeklySubs, 0);
+        const left = Math.max(weeklyIncome - spent, 0);
+        const denom = Math.max(weeklyIncome, 1);
+
+        setBar("barNights", nightTotal / denom);
+        setBar("barFood", foodCost / denom);
+        setBar("barSubs", weeklySubs / denom);
+        setBar("barLeft", left / denom);
+
+        valNights.innerText = `£${nightTotal.toFixed(2)}`;
+        valFood.innerText = `£${foodCost.toFixed(2)}`;
+        valSubs.innerText = `£${weeklySubs.toFixed(2)}`;
+        valLeft.innerText = `£${left.toFixed(2)}`;
+
+        const biggest = maxKey({ nights: nightTotal, food: foodCost, subs: weeklySubs });
+        insightText.innerText =
+          biggest === "nights" ? "Your biggest cost is nights out. Reducing by 1 night can make a big difference." :
+          biggest === "food" ? "Your biggest cost is food. A lower food tier could stabilise your week." :
+          "Your biggest cost is subscriptions. Consider cancelling what you don’t use.";
+      }
+
+      // Store last calculation for saving
       lastCalculated = {
         createdAt: new Date().toISOString(),
         inputs: {
@@ -276,12 +554,26 @@
           nightCostPerNight: nightCost,
           weeklyIncome: Number(weeklyIncome.toFixed(2)),
           weeklySubscriptions: Number(weeklySubs.toFixed(2)),
+          weeklyNightTotal: Number(nightTotal.toFixed(2)),
           weeklyBalance: Number(balance.toFixed(2))
         }
       };
     }
 
-    /* ---------- SAVE TO FIRESTORE ---------- */
+    function setBar(id, ratio) {
+      const pct = Math.max(0, Math.min(1, ratio)) * 100;
+      document.getElementById(id).style.width = pct.toFixed(1) + "%";
+    }
+
+    function maxKey(obj) {
+      let bestK = null, bestV = -Infinity;
+      for (const k in obj) {
+        if (obj[k] > bestV) { bestV = obj[k]; bestK = k; }
+      }
+      return bestK;
+    }
+
+    /* ---------- SAVE / LOAD ---------- */
     async function saveBudget() {
       if (!currentUser) {
         alert("Please sign in to save your budget.");
@@ -294,8 +586,6 @@
 
       try {
         const uid = currentUser.uid;
-
-        // Save as a new document in /users/{uid}/budgets
         await db.collection("users")
           .doc(uid)
           .collection("budgets")
@@ -304,26 +594,24 @@
             savedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
 
-        alert("Saved! ✅ Your budget is now stored in your account.");
+        alert("Saved ✅");
+
+        // If premium, refresh history list immediately
+        if (isPremium) await loadBudgetHistory();
       } catch (e) {
         console.error(e);
         alert("Saving failed: " + e.message);
       }
     }
 
-    /* ---------- LOAD LAST SAVED BUDGET ---------- */
-    async function loadLastBudget() {
-      const statusEl = document.getElementById("loadStatus");
-      statusEl.innerText = "";
+    // If showUI = true, it prints status and navigates. If false, it's silent auto-load.
+    async function loadLastBudget(showUI) {
+      if (!currentUser) return;
 
-      if (!currentUser) {
-        alert("Please sign in to load saved budgets.");
-        return;
-      }
+      const statusEl = document.getElementById("loadStatus");
+      if (showUI) statusEl.innerText = "Loading…";
 
       try {
-        statusEl.innerText = "Loading…";
-
         const uid = currentUser.uid;
         const snap = await db.collection("users")
           .doc(uid)
@@ -333,35 +621,117 @@
           .get();
 
         if (snap.empty) {
-          statusEl.innerText = "No saved budgets yet.";
+          if (showUI) statusEl.innerText = "No saved budgets yet.";
           return;
         }
 
         const data = snap.docs[0].data();
 
         // Restore inputs
-        loan.value = data.inputs.loanPerYear ?? 0;
-        wage.value = data.inputs.wagePerMonth ?? 0;
-        personal.value = data.inputs.personalFunds ?? 0;
-        subscriptions.value = data.inputs.subscriptionsPerMonth ?? 0;
-        nights.value = data.inputs.nightsOutPerWeek ?? 0;
-        food.value = data.inputs.foodPerWeek ?? 25;
+        loan.value = data.inputs?.loanPerYear ?? 0;
+        wage.value = data.inputs?.wagePerMonth ?? 0;
+        personal.value = data.inputs?.personalFunds ?? 0;
+        subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
+        nights.value = data.inputs?.nightsOutPerWeek ?? 0;
+        food.value = data.inputs?.foodPerWeek ?? 25;
 
-        // Uni restore (by index if possible)
-        if (typeof data.inputs.uniIndex === "number") {
-          uni.value = data.inputs.uniIndex;
-        }
+        if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
 
-        // Recalculate to refresh outputs
+        // Recalculate outputs
         calculateBudget();
 
-        statusEl.innerText = "Loaded your last saved budget ✅";
+        if (showUI) {
+          statusEl.innerText = "Loaded ✅";
+          showPage("calculator");
+        }
+      } catch (e) {
+        console.error(e);
+        if (showUI) statusEl.innerText = "";
+        if (showUI) alert("Load failed: " + e.message);
+      }
+    }
+
+    /* ---------- HISTORY (premium) ---------- */
+    async function loadBudgetHistory() {
+      if (!currentUser || !isPremium) return;
+
+      const uid = currentUser.uid;
+      const listEl = document.getElementById("historyList");
+      listEl.innerHTML = `<div class="muted small">Loading history…</div>`;
+
+      try {
+        const snap = await db.collection("users")
+          .doc(uid)
+          .collection("budgets")
+          .orderBy("savedAt", "desc")
+          .limit(10)
+          .get();
+
+        if (snap.empty) {
+          listEl.innerHTML = `<div class="muted small">No saved budgets yet.</div>`;
+          return;
+        }
+
+        const rows = [];
+        snap.forEach(doc => {
+          const d = doc.data();
+          const ts = d.savedAt?.toDate ? d.savedAt.toDate() : null;
+          const when = ts ? ts.toLocaleString() : (d.createdAt || "Saved");
+          const balance = d.derived?.weeklyBalance ?? 0;
+          const uniName = d.inputs?.uniName ?? "University";
+
+          rows.push(`
+            <div class="history-item">
+              <div>
+                <div class="history-title">${escapeHtml(uniName)}</div>
+                <div class="muted small">${escapeHtml(when)}</div>
+              </div>
+              <div class="history-right">
+                <div class="history-balance">£${Number(balance).toFixed(2)}</div>
+                <button class="secondary history-btn" onclick="loadBudgetById('${doc.id}')">Load</button>
+              </div>
+            </div>
+          `);
+        });
+
+        listEl.innerHTML = rows.join("");
+      } catch (e) {
+        console.error(e);
+        listEl.innerHTML = `<div class="muted small">Failed to load history.</div>`;
+      }
+    }
+
+    async function loadBudgetById(docId) {
+      if (!currentUser || !isPremium) return;
+
+      try {
+        const uid = currentUser.uid;
+        const docRef = db.collection("users").doc(uid).collection("budgets").doc(docId);
+        const snap = await docRef.get();
+        if (!snap.exists) return;
+
+        const data = snap.data();
+
+        loan.value = data.inputs?.loanPerYear ?? 0;
+        wage.value = data.inputs?.wagePerMonth ?? 0;
+        personal.value = data.inputs?.personalFunds ?? 0;
+        subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
+        nights.value = data.inputs?.nightsOutPerWeek ?? 0;
+        food.value = data.inputs?.foodPerWeek ?? 25;
+        if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
+
+        calculateBudget();
         showPage("calculator");
       } catch (e) {
         console.error(e);
-        statusEl.innerText = "";
         alert("Load failed: " + e.message);
       }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[s]));
     }
 
     /* ---------- NAVIGATION ---------- */
@@ -385,6 +755,5 @@
   </script>
 </body>
 </html>
-
 
 
