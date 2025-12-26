@@ -1,0 +1,72 @@
+[
+  { "name": "University of Oxford", "city": "Oxford" },
+  { "name": "University of Cambridge", "city": "Cambridge" },
+
+  { "name": "Imperial College London", "city": "London" },
+  { "name": "University College London", "city": "London" },
+  { "name": "King's College London", "city": "London" },
+  { "name": "London School of Economics", "city": "London" },
+  { "name": "Queen Mary University of London", "city": "London" },
+  { "name": "University of Greenwich", "city": "London" },
+  { "name": "University of Roehampton", "city": "London" },
+
+  { "name": "University of Manchester", "city": "Manchester" },
+  { "name": "Manchester Metropolitan University", "city": "Manchester" },
+  { "name": "University of Salford", "city": "Salford" },
+
+  { "name": "University of Leeds", "city": "Leeds" },
+  { "name": "Leeds Beckett University", "city": "Leeds" },
+
+  { "name": "University of Birmingham", "city": "Birmingham" },
+  { "name": "Aston University", "city": "Birmingham" },
+
+  { "name": "University of Nottingham", "city": "Nottingham" },
+  { "name": "Nottingham Trent University", "city": "Nottingham" },
+
+  { "name": "University of Sheffield", "city": "Sheffield" },
+  { "name": "Sheffield Hallam University", "city": "Sheffield" },
+
+  { "name": "University of Bristol", "city": "Bristol" },
+  { "name": "University of the West of England", "city": "Bristol" },
+
+  { "name": "University of Liverpool", "city": "Liverpool" },
+  { "name": "Liverpool John Moores University", "city": "Liverpool" },
+
+  { "name": "Newcastle University", "city": "Newcastle" },
+  { "name": "Northumbria University", "city": "Newcastle" },
+
+  { "name": "University of York", "city": "York" },
+  { "name": "Durham University", "city": "Durham" },
+
+  { "name": "University of Leicester", "city": "Leicester" },
+  { "name": "University of Warwick", "city": "Coventry" },
+  { "name": "Coventry University", "city": "Coventry" },
+
+  { "name": "University of Exeter", "city": "Exeter" },
+  { "name": "University of Bath", "city": "Bath" },
+  { "name": "University of Reading", "city": "Reading" },
+
+  { "name": "University of Southampton", "city": "Southampton" },
+  { "name": "University of Portsmouth", "city": "Portsmouth" },
+
+  { "name": "University of Sussex", "city": "Brighton" },
+  { "name": "University of Brighton", "city": "Brighton" },
+
+  { "name": "University of East Anglia", "city": "Norwich" },
+
+  { "name": "Cardiff University", "city": "Cardiff" },
+  { "name": "Cardiff Metropolitan University", "city": "Cardiff" },
+  { "name": "Swansea University", "city": "Swansea" },
+
+  { "name": "Bangor University", "city": "Bangor" },
+  { "name": "Aberystwyth University", "city": "Aberystwyth" },
+
+  { "name": "University of Edinburgh", "city": "Edinburgh" },
+  { "name": "University of Glasgow", "city": "Glasgow" },
+  { "name": "University of Dundee", "city": "Dundee" },
+  { "name": "University of Aberdeen", "city": "Aberdeen" },
+  { "name": "University of Stirling", "city": "Stirling" },
+
+  { "name": "Queen's University Belfast", "city": "Belfast" },
+  { "name": "Ulster University", "city": "Coleraine" }
+]
