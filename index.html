@@ -26,7 +26,7 @@
     firebase.initializeApp(firebaseConfig);
     window.auth = firebase.auth();
     window.db = firebase.firestore();
-    window.functions = firebase.functions(); // required for Stripe portal link
+    window.functions = firebase.functions();
   </script>
 </head>
 
@@ -51,8 +51,8 @@
       <div class="card">
         <h1>Student budgeting, simplified.</h1>
         <p class="muted">
-          Plan your week using income, subscriptions, university city costs, and nights out.
-          Sign in to save and reload budgets.
+          Plan weekly spending using income, subscriptions, university city costs and nights out.
+          Sign in to save. Premium unlocks term forecasting, scenario comparisons, subscription insights and exports.
         </p>
 
         <div class="home-actions">
@@ -61,7 +61,7 @@
         </div>
 
         <div class="notice">
-          <strong>Tip:</strong> After you calculate, hit <strong>Save</strong>. When you return and sign in, Univio can auto-load your last budget.
+          <strong>Premium includes:</strong> budget history + what-if scenarios + term forecast + subscription manager + challenges + export.
         </div>
       </div>
     </section>
@@ -77,6 +77,7 @@
           <div class="pill" id="premiumPill" style="display:none;">Premium</div>
         </div>
 
+        <!-- BASE FORM -->
         <div class="form">
           <label>
             <span>Student loan (per year)</span>
@@ -91,11 +92,6 @@
           <label>
             <span>Personal funds</span>
             <input id="personal" type="number" placeholder="e.g. 500">
-          </label>
-
-          <label>
-            <span>Monthly subscriptions</span>
-            <input id="subscriptions" type="number" placeholder="e.g. 25">
           </label>
 
           <label>
@@ -117,57 +113,205 @@
             <input id="nights" type="number" placeholder="e.g. 2">
           </label>
 
+          <!-- Free: Single monthly subscriptions input (simple) -->
+          <label>
+            <span>Monthly subscriptions (quick total)</span>
+            <input id="subscriptionsQuick" type="number" placeholder="e.g. 25">
+          </label>
+
           <button class="primary" id="calcBtn">Calculate</button>
 
           <div id="result" class="output"></div>
           <div id="tips" class="output tips"></div>
 
-          <!-- Premium Insights (gated) -->
-          <div class="card-lite" id="insightsBox">
+          <!-- FREE EXPORT (basic): last calculation CSV -->
+          <div class="card-lite">
             <div class="row-between">
-              <strong>Spending breakdown</strong>
-              <span class="muted small" id="insightsGateLabel">Premium feature</span>
+              <strong>Export</strong>
+              <span class="muted small">Free</span>
             </div>
-
-            <div id="insightsLocked" class="muted small">
-              Upgrade to Premium to see a full breakdown + smart insights.
-            </div>
-
-            <div id="insights" style="display:none;">
-              <div class="bar-row">
-                <div class="bar-label">Nights out</div>
-                <div class="bar-track"><div class="bar-fill" id="barNights"></div></div>
-                <div class="bar-value" id="valNights"></div>
-              </div>
-
-              <div class="bar-row">
-                <div class="bar-label">Food</div>
-                <div class="bar-track"><div class="bar-fill" id="barFood"></div></div>
-                <div class="bar-value" id="valFood"></div>
-              </div>
-
-              <div class="bar-row">
-                <div class="bar-label">Subscriptions</div>
-                <div class="bar-track"><div class="bar-fill" id="barSubs"></div></div>
-                <div class="bar-value" id="valSubs"></div>
-              </div>
-
-              <div class="bar-row">
-                <div class="bar-label">Money left</div>
-                <div class="bar-track"><div class="bar-fill" id="barLeft"></div></div>
-                <div class="bar-value" id="valLeft"></div>
-              </div>
-
-              <div class="muted small" id="insightText"></div>
-            </div>
+            <p class="muted small">Download a CSV of your latest calculation.</p>
+            <button class="secondary" id="exportCsvBtn">Download CSV</button>
           </div>
 
-          <!-- Save -->
+          <!-- SAVE -->
           <button class="secondary" id="saveBudgetBtn" disabled>
             Save this budget to my account
           </button>
           <p class="muted small" id="saveHint">Sign in to save your budget.</p>
         </div>
+
+        <!-- PREMIUM FEATURES -->
+        <div class="divider"></div>
+
+        <div class="card-lite">
+          <div class="row-between">
+            <strong>Premium features</strong>
+            <span class="muted small" id="premiumGateLabelCalc">Premium feature</span>
+          </div>
+
+          <div id="premiumLockedCalc" class="muted small">
+            Subscribe to Premium to unlock term forecasting, scenarios, subscription manager, challenges, insights and history.
+          </div>
+
+          <div id="premiumAreaCalc" style="display:none;">
+            <!-- PREMIUM: Subscription manager -->
+            <div class="card-lite" style="margin-top:12px;">
+              <div class="row-between">
+                <strong>Subscription manager</strong>
+                <span class="muted small" id="subsWeeklyTotal">Weekly: £0.00</span>
+              </div>
+
+              <div class="grid-2" style="margin-top:10px;">
+                <label>
+                  <span>Subscription name</span>
+                  <input id="subName" type="text" placeholder="e.g. Spotify">
+                </label>
+                <label>
+                  <span>Monthly cost (£)</span>
+                  <input id="subCost" type="number" placeholder="e.g. 10.99">
+                </label>
+              </div>
+
+              <button class="secondary" id="addSubBtn" style="margin-top:10px;">Add subscription</button>
+
+              <div id="subsList" class="history-list" style="margin-top:10px;"></div>
+              <p class="muted small" id="subsInsight"></p>
+            </div>
+
+            <!-- PREMIUM: Advanced breakdown + insights -->
+            <div class="card-lite" style="margin-top:12px;">
+              <div class="row-between">
+                <strong>Spending breakdown</strong>
+                <span class="muted small">Premium</span>
+              </div>
+
+              <div style="margin-top:10px;">
+                <div class="bar-row">
+                  <div class="bar-label">Nights out</div>
+                  <div class="bar-track"><div class="bar-fill" id="barNights"></div></div>
+                  <div class="bar-value" id="valNights"></div>
+                </div>
+
+                <div class="bar-row">
+                  <div class="bar-label">Food</div>
+                  <div class="bar-track"><div class="bar-fill" id="barFood"></div></div>
+                  <div class="bar-value" id="valFood"></div>
+                </div>
+
+                <div class="bar-row">
+                  <div class="bar-label">Subscriptions</div>
+                  <div class="bar-track"><div class="bar-fill" id="barSubs"></div></div>
+                  <div class="bar-value" id="valSubs"></div>
+                </div>
+
+                <div class="bar-row">
+                  <div class="bar-label">Money left</div>
+                  <div class="bar-track"><div class="bar-fill" id="barLeft"></div></div>
+                  <div class="bar-value" id="valLeft"></div>
+                </div>
+
+                <div class="muted small" id="insightText" style="margin-top:8px;"></div>
+              </div>
+            </div>
+
+            <!-- PREMIUM: Term forecast -->
+            <div class="card-lite" style="margin-top:12px;">
+              <div class="row-between">
+                <strong>Term forecast</strong>
+                <span class="muted small">Premium</span>
+              </div>
+
+              <div class="grid-2" style="margin-top:10px;">
+                <label>
+                  <span>Weeks left in term</span>
+                  <input id="termWeeks" type="number" placeholder="e.g. 12">
+                </label>
+                <label>
+                  <span>Start date (optional)</span>
+                  <input id="termStart" type="date">
+                </label>
+              </div>
+
+              <button class="secondary" id="termForecastBtn" style="margin-top:10px;">Run forecast</button>
+
+              <div id="termResult" class="output" style="margin-top:10px;"></div>
+              <button class="secondary" id="exportTermCsvBtn" style="margin-top:10px;">Download term summary CSV</button>
+            </div>
+
+            <!-- PREMIUM: What-if scenarios -->
+            <div class="card-lite" style="margin-top:12px;">
+              <div class="row-between">
+                <strong>What-if scenarios</strong>
+                <span class="muted small">Premium</span>
+              </div>
+
+              <p class="muted small" style="margin-top:6px;">
+                Compare choices instantly without changing your saved inputs.
+              </p>
+
+              <div class="scenario-grid" style="margin-top:10px;">
+                <label class="checkline">
+                  <input type="checkbox" id="scnOneLessNight">
+                  <span>1 fewer night out per week</span>
+                </label>
+
+                <label class="checkline">
+                  <input type="checkbox" id="scnCheaperFood">
+                  <span>Switch to cheaper food tier</span>
+                </label>
+
+                <label class="checkline">
+                  <input type="checkbox" id="scnCutSubs20">
+                  <span>Reduce subscriptions by 20%</span>
+                </label>
+
+                <label class="checkline">
+                  <input type="checkbox" id="scnNoUbers">
+                  <span>Replace 1 Uber/week with walking</span>
+                </label>
+              </div>
+
+              <label style="margin-top:10px;">
+                <span>Uber cost per trip (£) (for scenarios)</span>
+                <input id="uberCost" type="number" placeholder="e.g. 8">
+              </label>
+
+              <button class="secondary" id="runScenariosBtn" style="margin-top:10px;">Compare scenarios</button>
+
+              <div id="scenarioResult" class="output" style="margin-top:10px;"></div>
+            </div>
+
+            <!-- PREMIUM: Savings challenges -->
+            <div class="card-lite" style="margin-top:12px;">
+              <div class="row-between">
+                <strong>Savings challenges</strong>
+                <span class="muted small">Premium</span>
+              </div>
+
+              <div class="grid-2" style="margin-top:10px;">
+                <label>
+                  <span>Goal (£)</span>
+                  <input id="challengeGoal" type="number" placeholder="e.g. 100">
+                </label>
+                <label>
+                  <span>Deadline (weeks)</span>
+                  <input id="challengeWeeks" type="number" placeholder="e.g. 10">
+                </label>
+              </div>
+
+              <label style="margin-top:10px;">
+                <span>Already saved (£)</span>
+                <input id="challengeSaved" type="number" placeholder="e.g. 20">
+              </label>
+
+              <button class="secondary" id="challengeBtn" style="margin-top:10px;">Generate plan</button>
+              <div id="challengeResult" class="output" style="margin-top:10px;"></div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -220,10 +364,7 @@
             <input id="prefSubs" type="number" placeholder="e.g. 25">
           </label>
 
-          <button class="secondary" id="saveProfileBtn" disabled>
-            Save preferences
-          </button>
-
+          <button class="secondary" id="saveProfileBtn" disabled>Save preferences</button>
           <p class="muted small" id="profileHint">Sign in to save preferences.</p>
         </div>
 
@@ -231,14 +372,11 @@
 
         <!-- Budgets -->
         <h2>Budgets</h2>
-
-        <button class="secondary" id="loadBudgetBtn" disabled>
-          Load my last saved budget
-        </button>
+        <button class="secondary" id="loadBudgetBtn" disabled>Load my last saved budget</button>
         <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
         <p class="muted small" id="loadStatus"></p>
 
-        <!-- History (premium) -->
+        <!-- History (Premium unlimited; free = last only) -->
         <div class="card-lite" style="margin-top:14px;">
           <div class="row-between">
             <strong>Budget history</strong>
@@ -246,7 +384,7 @@
           </div>
 
           <div id="historyLocked" class="muted small">
-            Upgrade to Premium to see all saved budgets and quick-load any one.
+            Premium unlocks budget history + quick-load any previous budget.
           </div>
 
           <div id="history" style="display:none;">
@@ -256,10 +394,10 @@
 
         <div class="divider"></div>
 
-        <!-- Premium -->
+        <!-- Premium (Stripe Extension buttons) -->
         <h2>Premium</h2>
         <p class="muted small">
-          Subscribe to unlock insights + budget history. You can manage/cancel anytime.
+          Subscribe to unlock: term forecast, what-if scenarios, subscription manager, challenges, insights, and full history.
         </p>
 
         <div class="premium-actions">
@@ -275,29 +413,49 @@
     /* =========================
        Stripe Price ID (REQUIRED)
        ========================= */
-    const PRICE_ID = "price_1SilSr054mpSFuIv9nqPtASC"; // <-- your Stripe PRICE id (must start with price_)
+    const PRICE_ID = "price_1SilSr054mpSFuIv9nqPtASC"; // <-- replace with your LIVE price later
 
     /* =========================
        Helpers + element refs
        ========================= */
     const el = (id) => document.getElementById(id);
+    const fmt = (n) => "£" + Number(n || 0).toFixed(2);
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
-    // Calculator
+    // Base inputs
     const loan = el("loan");
     const wage = el("wage");
     const personal = el("personal");
-    const subscriptions = el("subscriptions");
     const uni = el("uni");
     const food = el("food");
     const nights = el("nights");
+    const subscriptionsQuick = el("subscriptionsQuick");
+
+    // Buttons/outputs
     const calcBtn = el("calcBtn");
     const result = el("result");
     const tips = el("tips");
+    const exportCsvBtn = el("exportCsvBtn");
 
-    // Premium insights
-    const insightsGateLabel = el("insightsGateLabel");
-    const insightsLocked = el("insightsLocked");
-    const insights = el("insights");
+    const saveBudgetBtn = el("saveBudgetBtn");
+    const saveHint = el("saveHint");
+
+    // Premium wrapper
+    const premiumPill = el("premiumPill");
+    const premiumPillAccount = el("premiumPillAccount");
+    const premiumGateLabelCalc = el("premiumGateLabelCalc");
+    const premiumLockedCalc = el("premiumLockedCalc");
+    const premiumAreaCalc = el("premiumAreaCalc");
+
+    // Premium: subs
+    const subName = el("subName");
+    const subCost = el("subCost");
+    const addSubBtn = el("addSubBtn");
+    const subsList = el("subsList");
+    const subsWeeklyTotal = el("subsWeeklyTotal");
+    const subsInsight = el("subsInsight");
+
+    // Premium: breakdown bars
     const barNights = el("barNights");
     const barFood = el("barFood");
     const barSubs = el("barSubs");
@@ -308,17 +466,33 @@
     const valLeft = el("valLeft");
     const insightText = el("insightText");
 
-    // Account
+    // Premium: term forecast
+    const termWeeks = el("termWeeks");
+    const termStart = el("termStart");
+    const termForecastBtn = el("termForecastBtn");
+    const termResult = el("termResult");
+    const exportTermCsvBtn = el("exportTermCsvBtn");
+
+    // Premium: scenarios
+    const scnOneLessNight = el("scnOneLessNight");
+    const scnCheaperFood = el("scnCheaperFood");
+    const scnCutSubs20 = el("scnCutSubs20");
+    const scnNoUbers = el("scnNoUbers");
+    const uberCost = el("uberCost");
+    const runScenariosBtn = el("runScenariosBtn");
+    const scenarioResult = el("scenarioResult");
+
+    // Premium: challenges
+    const challengeGoal = el("challengeGoal");
+    const challengeWeeks = el("challengeWeeks");
+    const challengeSaved = el("challengeSaved");
+    const challengeBtn = el("challengeBtn");
+    const challengeResult = el("challengeResult");
+
+    // Account page
     const userStatus = el("user-status");
     const googleSignInBtn = el("googleSignInBtn");
     const logoutBtn = el("logoutBtn");
-
-    const saveBudgetBtn = el("saveBudgetBtn");
-    const saveHint = el("saveHint");
-
-    const loadBudgetBtn = el("loadBudgetBtn");
-    const loadHint = el("loadHint");
-    const loadStatus = el("loadStatus");
 
     const prefUni = el("prefUni");
     const prefFood = el("prefFood");
@@ -327,18 +501,20 @@
     const saveProfileBtn = el("saveProfileBtn");
     const profileHint = el("profileHint");
 
-    // Premium buttons
-    const subscribeBtn = el("subscribeBtn");
-    const manageBtn = el("manageBtn");
-    const premiumStatusText = el("premiumStatusText");
+    const loadBudgetBtn = el("loadBudgetBtn");
+    const loadHint = el("loadHint");
+    const loadStatus = el("loadStatus");
 
-    // Premium pills / gating
-    const premiumPill = el("premiumPill");
-    const premiumPillAccount = el("premiumPillAccount");
+    // History
     const historyGateLabel = el("historyGateLabel");
     const historyLocked = el("historyLocked");
     const history = el("history");
     const historyList = el("historyList");
+
+    // Premium subscribe
+    const subscribeBtn = el("subscribeBtn");
+    const manageBtn = el("manageBtn");
+    const premiumStatusText = el("premiumStatusText");
 
     /* =========================
        State
@@ -349,6 +525,10 @@
 
     let universities = [];
     let cityCosts = {};
+
+    // Premium: subscription items
+    let subItems = []; // [{name, monthlyCost}]
+    // Last calc snapshot
     let lastCalculated = null;
 
     /* =========================
@@ -358,10 +538,7 @@
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch(e => alert(e.message));
     }
-
-    function logout() {
-      auth.signOut();
-    }
+    function logout() { auth.signOut(); }
 
     googleSignInBtn.addEventListener("click", loginWithGoogle);
     logoutBtn.addEventListener("click", logout);
@@ -407,14 +584,17 @@
       subscribeBtn.disabled = false;
       premiumStatusText.innerText = "Checking subscription…";
 
-      // Load user preferences (profile) from users/{uid}
+      // Load preferences
       await loadProfile();
 
-      // Listen to Stripe extension subscription status (customers/{uid}/subscriptions)
+      // Listen to Stripe subscription
       listenToSubscriptionStatus();
 
       // Auto-load last budget silently
       await loadLastBudget(false);
+
+      // Load premium subscription items if premium
+      await loadPremiumSubItems();
     });
 
     /* =========================
@@ -426,12 +606,10 @@
       premiumPill.style.display = isPremium ? "inline-flex" : "none";
       premiumPillAccount.style.display = isPremium ? "inline-flex" : "none";
 
-      // Insights gating
-      insightsGateLabel.innerText = isPremium ? "Unlocked" : "Premium feature";
-      insightsLocked.style.display = isPremium ? "none" : "block";
-      insights.style.display = isPremium ? "block" : "none";
+      premiumGateLabelCalc.innerText = isPremium ? "Unlocked" : "Premium feature";
+      premiumLockedCalc.style.display = isPremium ? "none" : "block";
+      premiumAreaCalc.style.display = isPremium ? "block" : "none";
 
-      // History gating
       historyGateLabel.innerText = isPremium ? "Unlocked" : "Premium feature";
       historyLocked.style.display = isPremium ? "none" : "block";
       history.style.display = isPremium ? "block" : "none";
@@ -459,6 +637,7 @@
             manageBtn.disabled = false;
             premiumStatusText.innerText = "Premium active ✅";
             loadBudgetHistory();
+            loadPremiumSubItems();
           } else {
             manageBtn.style.display = "none";
             premiumStatusText.innerText = "Premium not active.";
@@ -478,7 +657,6 @@
 
     async function startPremiumCheckout() {
       if (!currentUser) return alert("Please sign in first.");
-
       try {
         const docRef = await db
           .collection("customers")
@@ -504,11 +682,9 @@
 
     async function openCustomerPortal() {
       if (!currentUser) return alert("Please sign in first.");
-
       try {
         const fn = functions.httpsCallable("ext-firestore-stripe-payments-createPortalLink");
         const res = await fn({ returnUrl: window.location.href });
-
         if (res?.data?.url) window.location.assign(res.data.url);
         else alert("Could not open portal.");
       } catch (e) {
@@ -560,13 +736,11 @@
 
       const profile = data.profile || {};
 
-      // fill fields
       if (typeof profile.defaultUniIndex === "number") prefUni.value = profile.defaultUniIndex;
       if (profile.defaultFood != null) prefFood.value = String(profile.defaultFood);
       if (typeof profile.defaultNights === "number") prefNights.value = profile.defaultNights;
       if (typeof profile.defaultSubscriptions === "number") prefSubs.value = profile.defaultSubscriptions;
 
-      // apply to calculator if empty
       applyPreferencesToCalculator(profile, { onlyIfEmpty: true });
     }
 
@@ -588,6 +762,7 @@
 
       try {
         await userDocRef.set({ profile }, { merge: true });
+
         applyPreferencesToCalculator(profile, { onlyIfEmpty: false });
         alert("Preferences saved ✅");
       } catch (e) {
@@ -609,12 +784,117 @@
         if (!onlyIfEmpty || !nights.value) nights.value = profile.defaultNights;
       }
       if (typeof profile.defaultSubscriptions === "number") {
-        if (!onlyIfEmpty || !subscriptions.value) subscriptions.value = profile.defaultSubscriptions;
+        if (!onlyIfEmpty || !subscriptionsQuick.value) subscriptionsQuick.value = profile.defaultSubscriptions;
       }
     }
 
     /* =========================
-       Calculator
+       Premium: subscription manager data in Firestore
+       Stored under users/{uid}/subscriptionItems
+       ========================= */
+    async function loadPremiumSubItems() {
+      if (!currentUser || !isPremium) return;
+
+      try {
+        const snap = await db.collection("users")
+          .doc(currentUser.uid)
+          .collection("subscriptionItems")
+          .orderBy("createdAt", "asc")
+          .get();
+
+        subItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .map(x => ({ id: x.id, name: x.name || "Subscription", monthlyCost: Number(x.monthlyCost || 0) }));
+
+        renderSubItems();
+      } catch (e) {
+        console.error(e);
+        subItems = [];
+        renderSubItems();
+      }
+    }
+
+    addSubBtn.addEventListener("click", async () => {
+      if (!isPremium) return alert("Premium required for subscription manager.");
+      if (!currentUser) return alert("Sign in first.");
+
+      const name = (subName.value || "").trim();
+      const cost = Number(subCost.value || 0);
+
+      if (!name) return alert("Enter a subscription name.");
+      if (cost <= 0) return alert("Enter a monthly cost.");
+
+      try {
+        await db.collection("users")
+          .doc(currentUser.uid)
+          .collection("subscriptionItems")
+          .add({
+            name,
+            monthlyCost: cost,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+        subName.value = "";
+        subCost.value = "";
+        await loadPremiumSubItems();
+        calculateBudget(); // refresh premium totals
+      } catch (e) {
+        console.error(e);
+        alert("Could not add subscription: " + e.message);
+      }
+    });
+
+    async function deleteSubItem(id) {
+      if (!currentUser) return;
+      try {
+        await db.collection("users").doc(currentUser.uid).collection("subscriptionItems").doc(id).delete();
+        await loadPremiumSubItems();
+        calculateBudget();
+      } catch (e) {
+        console.error(e);
+        alert("Could not remove subscription.");
+      }
+    }
+
+    function renderSubItems() {
+      subsList.innerHTML = "";
+      const weeklyTotal = getPremiumSubsWeeklyTotal();
+      subsWeeklyTotal.innerText = "Weekly: " + fmt(weeklyTotal);
+
+      if (!subItems.length) {
+        subsList.innerHTML = `<div class="muted small">No subscriptions added yet.</div>`;
+        subsInsight.innerText = "";
+        return;
+      }
+
+      // biggest subscription insight
+      const biggest = subItems.reduce((a, b) => (b.monthlyCost > a.monthlyCost ? b : a), subItems[0]);
+      subsInsight.innerText = `Biggest subscription: ${biggest.name} (${fmt(biggest.monthlyCost)}/month).`;
+
+      const rows = subItems.map(item => `
+        <div class="history-item">
+          <div>
+            <div class="history-title">${escapeHtml(item.name)}</div>
+            <div class="muted small">${fmt(item.monthlyCost)}/month (~${fmt(item.monthlyCost/4)}/week)</div>
+          </div>
+          <div class="history-right">
+            <button class="secondary history-btn" data-sub-id="${item.id}">Remove</button>
+          </div>
+        </div>
+      `);
+
+      subsList.innerHTML = rows.join("");
+      subsList.querySelectorAll("button[data-sub-id]").forEach(btn => {
+        btn.addEventListener("click", () => deleteSubItem(btn.getAttribute("data-sub-id")));
+      });
+    }
+
+    function getPremiumSubsWeeklyTotal() {
+      if (!isPremium) return 0;
+      return subItems.reduce((sum, x) => sum + (Number(x.monthlyCost || 0) / 4), 0);
+    }
+
+    /* =========================
+       Calculator + insights
        ========================= */
     calcBtn.addEventListener("click", calculateBudget);
 
@@ -622,11 +902,10 @@
       const loanVal = Number(loan.value) || 0;
       const wageVal = Number(wage.value) || 0;
       const personalVal = Number(personal.value) || 0;
-      const subsVal = Number(subscriptions.value) || 0;
       const nightsVal = Number(nights.value) || 0;
+      const foodCost = Number(food.value) || 0;
 
       const weeklyIncome = loanVal / 52 + wageVal / 4 + personalVal / 52;
-      const weeklySubs = subsVal / 4;
 
       const uniObj = universities[Number(uni.value)];
       if (!uniObj) {
@@ -636,78 +915,93 @@
         return;
       }
 
-      const nightCost = cityCosts[uniObj.city] || 0;
-      const foodCost = Number(food.value) || 0;
-
+      const nightCost = Number(cityCosts[uniObj.city] || 0);
       const nightTotal = nightsVal * nightCost;
-      const balance = weeklyIncome - nightTotal - foodCost - weeklySubs;
 
+      // Subscriptions:
+      // Free uses subscriptionsQuick; Premium uses detailed list + still includes quick if user wants
+      const quickMonthly = Number(subscriptionsQuick.value || 0);
+      const quickWeekly = quickMonthly / 4;
+      const premiumWeekly = getPremiumSubsWeeklyTotal();
+      const subsWeekly = isPremium ? Math.max(quickWeekly, premiumWeekly) : quickWeekly; 
+      // (If premium user uses both, take the larger to avoid double counting. You can change this later.)
+
+      const weeklySpent = nightTotal + foodCost + subsWeekly;
+      const balance = weeklyIncome - weeklySpent;
+
+      // FREE messages
       const status =
         balance < 0 ? "🔴 Overspending" :
         balance < 30 ? "🟠 Tight budget" :
         "🟢 Safe budget";
 
-      result.innerText = `${status} – Weekly balance £${balance.toFixed(2)}`;
+      result.innerText = `${status} – Weekly balance ${fmt(balance)}`;
 
-      // Tips (free)
+      // Free tips
       let tipsText = "";
-      if (weeklySubs > 10) tipsText += `• Subscriptions cost ~£${weeklySubs.toFixed(2)} per week.<br>`;
-      if (nightsVal > 0 && nightCost > 0) tipsText += `• One fewer night out saves about £${nightCost} per week.<br>`;
+      if (subsWeekly > 10) tipsText += `• Subscriptions cost ~${fmt(subsWeekly)} per week.<br>`;
+      if (nightsVal > 0 && nightCost > 0) tipsText += `• One fewer night out saves about ${fmt(nightCost)} per week.<br>`;
       if (foodCost > 25) {
         const cheaperFood = (foodCost === 60) ? 40 : 25;
-        tipsText += `• Cheaper food choice saves £${(foodCost - cheaperFood)} per week.<br>`;
+        tipsText += `• Cheaper food choice saves ${fmt(foodCost - cheaperFood)} per week.<br>`;
       }
       tips.innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
 
-      // Premium insights
+      // PREMIUM: breakdown + insight
       if (isPremium) {
-        const spent = Math.max(nightTotal + foodCost + weeklySubs, 0);
+        const spent = Math.max(weeklySpent, 0);
         const left = Math.max(weeklyIncome - spent, 0);
         const denom = Math.max(weeklyIncome, 1);
 
         setBar(barNights, nightTotal / denom);
         setBar(barFood, foodCost / denom);
-        setBar(barSubs, weeklySubs / denom);
+        setBar(barSubs, subsWeekly / denom);
         setBar(barLeft, left / denom);
 
-        valNights.innerText = `£${nightTotal.toFixed(2)}`;
-        valFood.innerText = `£${foodCost.toFixed(2)}`;
-        valSubs.innerText = `£${weeklySubs.toFixed(2)}`;
-        valLeft.innerText = `£${left.toFixed(2)}`;
+        valNights.innerText = fmt(nightTotal);
+        valFood.innerText = fmt(foodCost);
+        valSubs.innerText = fmt(subsWeekly);
+        valLeft.innerText = fmt(left);
 
-        const biggest = maxKey({ nights: nightTotal, food: foodCost, subs: weeklySubs });
+        const biggest = maxKey({ nights: nightTotal, food: foodCost, subs: subsWeekly });
         insightText.innerText =
           biggest === "nights" ? "Your biggest cost is nights out. Reducing by 1 night can make a big difference." :
           biggest === "food" ? "Your biggest cost is food. A lower food tier could stabilise your week." :
-          "Your biggest cost is subscriptions. Consider cancelling what you don’t use.";
+          "Your biggest cost is subscriptions. Review the subscription manager and cut what you don’t use.";
       }
 
+      // Store last calculation snapshot
       lastCalculated = {
         createdAt: new Date().toISOString(),
         inputs: {
           loanPerYear: loanVal,
           wagePerMonth: wageVal,
           personalFunds: personalVal,
-          subscriptionsPerMonth: subsVal,
-          nightsOutPerWeek: nightsVal,
-          foodPerWeek: foodCost,
           uniIndex: Number(uni.value),
           uniName: uniObj.name,
-          city: uniObj.city
+          city: uniObj.city,
+          foodPerWeek: foodCost,
+          nightsOutPerWeek: nightsVal,
+          subscriptionsQuickPerMonth: quickMonthly,
+          premiumSubsUsedWeekly: subsWeekly
         },
         derived: {
           nightCostPerNight: nightCost,
           weeklyIncome: Number(weeklyIncome.toFixed(2)),
-          weeklySubscriptions: Number(weeklySubs.toFixed(2)),
           weeklyNightTotal: Number(nightTotal.toFixed(2)),
+          weeklyFood: Number(foodCost.toFixed(2)),
+          weeklySubs: Number(subsWeekly.toFixed(2)),
+          weeklySpent: Number(weeklySpent.toFixed(2)),
           weeklyBalance: Number(balance.toFixed(2))
         }
       };
+
+      // refresh sub UI totals
+      if (isPremium) renderSubItems();
     }
 
     function setBar(node, ratio) {
-      const pct = Math.max(0, Math.min(1, ratio)) * 100;
-      node.style.width = pct.toFixed(1) + "%";
+      node.style.width = (clamp01(ratio) * 100).toFixed(1) + "%";
     }
 
     function maxKey(obj) {
@@ -716,6 +1010,208 @@
         if (obj[k] > bestV) { bestV = obj[k]; bestK = k; }
       }
       return bestK;
+    }
+
+    /* =========================
+       Premium: Term forecast
+       ========================= */
+    termForecastBtn.addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for term forecasting.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      runTermForecast();
+    });
+
+    function runTermForecast() {
+      const weeks = Number(termWeeks.value) || 0;
+      if (weeks <= 0) {
+        termResult.innerText = "Enter weeks left in term.";
+        return;
+      }
+
+      const weeklyBalance = Number(lastCalculated.derived.weeklyBalance || 0);
+      const weeklySpent = Number(lastCalculated.derived.weeklySpent || 0);
+      const weeklyIncome = Number(lastCalculated.derived.weeklyIncome || 0);
+
+      // Simple forecasting: savings after N weeks if positive, or deficit growth if negative
+      const endValue = weeklyBalance * weeks;
+
+      let msg = "";
+      if (weeklyBalance >= 0) {
+        msg = `✅ At this pace, you could have about ${fmt(endValue)} left/saved after ${weeks} weeks.`;
+      } else {
+        msg = `⚠️ At this pace, you will be short by about ${fmt(Math.abs(endValue))} over ${weeks} weeks.`;
+      }
+
+      const startDate = termStart.value ? new Date(termStart.value) : null;
+      let endDateText = "";
+      if (startDate) {
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (weeks * 7));
+        endDateText = ` End date: ${endDate.toLocaleDateString()}.`;
+      }
+
+      termResult.innerText =
+        `${msg}${endDateText}\nWeekly income: ${fmt(weeklyIncome)} | Weekly spend: ${fmt(weeklySpent)} | Weekly balance: ${fmt(weeklyBalance)}`;
+    }
+
+    exportTermCsvBtn.addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for term export.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      const weeks = Number(termWeeks.value) || 0;
+      if (weeks <= 0) return alert("Enter weeks left in term first.");
+      downloadTermCsv(weeks);
+    });
+
+    function downloadTermCsv(weeks) {
+      const wIncome = Number(lastCalculated.derived.weeklyIncome || 0);
+      const wSpend = Number(lastCalculated.derived.weeklySpent || 0);
+      const wBal = Number(lastCalculated.derived.weeklyBalance || 0);
+
+      const rows = [
+        ["metric", "weekly", "term_total_weeks_" + weeks],
+        ["income", wIncome.toFixed(2), (wIncome * weeks).toFixed(2)],
+        ["spend", wSpend.toFixed(2), (wSpend * weeks).toFixed(2)],
+        ["balance", wBal.toFixed(2), (wBal * weeks).toFixed(2)],
+      ];
+
+      const csv = rows.map(r => r.join(",")).join("\n");
+      downloadTextFile(csv, `univio_term_summary_${weeks}w.csv`, "text/csv");
+    }
+
+    /* =========================
+       Premium: What-if scenarios
+       ========================= */
+    runScenariosBtn.addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for scenarios.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      runScenarios();
+    });
+
+    function runScenarios() {
+      const base = structuredCloneSafe(lastCalculated);
+
+      const baseBalance = Number(base.derived.weeklyBalance || 0);
+      const baseSpent = Number(base.derived.weeklySpent || 0);
+
+      // reconstruct needed parts
+      const nightsVal = Number(base.inputs.nightsOutPerWeek || 0);
+      const nightCost = Number(base.derived.nightCostPerNight || 0);
+      const foodCost = Number(base.inputs.foodPerWeek || 0);
+      const subsWeekly = Number(base.derived.weeklySubs || 0);
+
+      let nightsNew = nightsVal;
+      let foodNew = foodCost;
+      let subsNew = subsWeekly;
+      let uberSavings = 0;
+
+      if (scnOneLessNight.checked) nightsNew = Math.max(0, nightsVal - 1);
+      if (scnCheaperFood.checked) {
+        // cheaper tier logic
+        foodNew = foodCost === 60 ? 40 : (foodCost === 40 ? 25 : 25);
+      }
+      if (scnCutSubs20.checked) subsNew = subsWeekly * 0.8;
+      if (scnNoUbers.checked) {
+        const uCost = Number(uberCost.value || 0);
+        uberSavings = Math.max(0, uCost); // replace 1 uber/week with walking
+      }
+
+      const newNightTotal = nightsNew * nightCost;
+      const newSpent = newNightTotal + foodNew + subsNew - uberSavings;
+      const weeklyIncome = Number(base.derived.weeklyIncome || 0);
+      const newBalance = weeklyIncome - newSpent;
+
+      const delta = newBalance - baseBalance;
+
+      scenarioResult.innerText =
+        `Base weekly balance: ${fmt(baseBalance)}\n` +
+        `Scenario weekly balance: ${fmt(newBalance)}\n` +
+        `Change: ${delta >= 0 ? "+" : ""}${fmt(delta)}\n\n` +
+        `Scenario details:\n` +
+        `• Nights out: ${nightsVal} → ${nightsNew} (night cost ${fmt(nightCost)})\n` +
+        `• Food: ${fmt(foodCost)} → ${fmt(foodNew)}\n` +
+        `• Subscriptions: ${fmt(subsWeekly)} → ${fmt(subsNew)}\n` +
+        `• Uber savings: ${fmt(uberSavings)}`;
+    }
+
+    function structuredCloneSafe(obj) {
+      try { return structuredClone(obj); } catch { return JSON.parse(JSON.stringify(obj)); }
+    }
+
+    /* =========================
+       Premium: Savings challenges
+       ========================= */
+    challengeBtn.addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for challenges.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      runChallenge();
+    });
+
+    function runChallenge() {
+      const goal = Number(challengeGoal.value || 0);
+      const weeks = Number(challengeWeeks.value || 0);
+      const saved = Number(challengeSaved.value || 0);
+
+      if (goal <= 0 || weeks <= 0) {
+        challengeResult.innerText = "Enter a goal and deadline weeks.";
+        return;
+      }
+
+      const remaining = Math.max(0, goal - saved);
+      const weeklyTarget = remaining / weeks;
+
+      const weeklyBalance = Number(lastCalculated.derived.weeklyBalance || 0);
+
+      let msg = `Goal: ${fmt(goal)} | Already saved: ${fmt(saved)}\nRemaining: ${fmt(remaining)}\nWeekly target: ${fmt(weeklyTarget)}\n\n`;
+
+      if (weeklyBalance >= weeklyTarget) {
+        msg += `✅ Your current weekly balance (${fmt(weeklyBalance)}) is enough to hit this goal.`;
+      } else if (weeklyBalance > 0) {
+        msg += `⚠️ You’re short by about ${fmt(weeklyTarget - weeklyBalance)} per week. Use scenarios to cut spending.`;
+      } else {
+        msg += `🔴 You’re currently overspending. Reduce weekly spend before starting the challenge.`;
+      }
+
+      challengeResult.innerText = msg;
+    }
+
+    /* =========================
+       Export (FREE): latest calc CSV
+       ========================= */
+    exportCsvBtn.addEventListener("click", () => {
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      downloadLatestCalcCsv();
+    });
+
+    function downloadLatestCalcCsv() {
+      const d = lastCalculated;
+
+      const rows = [
+        ["field", "value"],
+        ["timestamp", d.createdAt],
+        ["university", d.inputs.uniName],
+        ["city", d.inputs.city],
+        ["weekly_income", d.derived.weeklyIncome.toFixed(2)],
+        ["weekly_spent", d.derived.weeklySpent.toFixed(2)],
+        ["weekly_balance", d.derived.weeklyBalance.toFixed(2)],
+        ["weekly_nights_total", d.derived.weeklyNightTotal.toFixed(2)],
+        ["weekly_food", d.derived.weeklyFood.toFixed(2)],
+        ["weekly_subscriptions", d.derived.weeklySubs.toFixed(2)],
+      ];
+
+      const csv = rows.map(r => r.join(",")).join("\n");
+      downloadTextFile(csv, "univio_latest_budget.csv", "text/csv");
+    }
+
+    function downloadTextFile(text, filename, mime) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     }
 
     /* =========================
@@ -768,9 +1264,10 @@
         loan.value = data.inputs?.loanPerYear ?? 0;
         wage.value = data.inputs?.wagePerMonth ?? 0;
         personal.value = data.inputs?.personalFunds ?? 0;
-        subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
         nights.value = data.inputs?.nightsOutPerWeek ?? 0;
         food.value = String(data.inputs?.foodPerWeek ?? 25);
+
+        subscriptionsQuick.value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
 
         if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
 
@@ -800,7 +1297,7 @@
           .doc(currentUser.uid)
           .collection("budgets")
           .orderBy("savedAt", "desc")
-          .limit(10)
+          .limit(15)
           .get();
 
         if (snap.empty) {
@@ -823,7 +1320,7 @@
                 <div class="muted small">${escapeHtml(when)}</div>
               </div>
               <div class="history-right">
-                <div class="history-balance">£${Number(balance).toFixed(2)}</div>
+                <div class="history-balance">${fmt(balance)}</div>
                 <button class="secondary history-btn" data-budget-id="${doc.id}">Load</button>
               </div>
             </div>
@@ -831,8 +1328,6 @@
         });
 
         historyList.innerHTML = rows.join("");
-
-        // attach load handlers
         historyList.querySelectorAll("button[data-budget-id]").forEach(btn => {
           btn.addEventListener("click", () => loadBudgetById(btn.getAttribute("data-budget-id")));
         });
@@ -856,9 +1351,10 @@
         loan.value = data.inputs?.loanPerYear ?? 0;
         wage.value = data.inputs?.wagePerMonth ?? 0;
         personal.value = data.inputs?.personalFunds ?? 0;
-        subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
         nights.value = data.inputs?.nightsOutPerWeek ?? 0;
         food.value = String(data.inputs?.foodPerWeek ?? 25);
+        subscriptionsQuick.value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
+
         if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
 
         calculateBudget();
@@ -891,6 +1387,14 @@
 
     el("go-calc").addEventListener("click", () => showPage("calculator"));
     el("go-account").addEventListener("click", () => showPage("account"));
+
+    /* =========================
+       Auto: keep subs weekly total updated visually
+       ========================= */
+    // This is safe even if not premium.
+    setInterval(() => {
+      if (isPremium) renderSubItems();
+    }, 3000);
   </script>
 </body>
 </html>
