@@ -27,6 +27,14 @@
     window.auth = firebase.auth();
     window.db = firebase.firestore();
     window.functions = firebase.functions();
+
+    /* =========================
+       Stripe Price ID (NO SYNC NEEDED)
+       IMPORTANT: must match extension mode
+       - sk_test_... => use TEST price_...
+       - sk_live_... => use LIVE price_...
+       ========================= */
+    const PRICE_ID = "price_1SilSr054mpSFuIv9nqPtASC";
   </script>
 </head>
 
@@ -308,10 +316,8 @@
               <button class="secondary" id="challengeBtn" style="margin-top:10px;">Generate plan</button>
               <div id="challengeResult" class="output" style="margin-top:10px;"></div>
             </div>
-
           </div>
         </div>
-
       </div>
     </section>
 
@@ -376,7 +382,7 @@
         <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
         <p class="muted small" id="loadStatus"></p>
 
-        <!-- History (Premium unlimited; free = last only) -->
+        <!-- History (Premium) -->
         <div class="card-lite" style="margin-top:14px;">
           <div class="row-between">
             <strong>Budget history</strong>
@@ -394,7 +400,7 @@
 
         <div class="divider"></div>
 
-        <!-- Premium (Stripe Extension buttons) -->
+        <!-- Premium -->
         <h2>Premium</h2>
         <p class="muted small">
           Subscribe to unlock: term forecast, what-if scenarios, subscription manager, challenges, insights, and full history.
@@ -411,125 +417,37 @@
 
   <script>
     /* =========================
-       Stripe Price ID (REQUIRED)
-       ========================= */
-    const PRICE_ID = "price_1SilSr054mpSFuIv9nqPtASC"; // <-- replace with your LIVE price later
-
-    /* =========================
        Helpers + element refs
        ========================= */
     const el = (id) => document.getElementById(id);
     const fmt = (n) => "£" + Number(n || 0).toFixed(2);
     const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
-    // Base inputs
-    const loan = el("loan");
-    const wage = el("wage");
-    const personal = el("personal");
-    const uni = el("uni");
-    const food = el("food");
-    const nights = el("nights");
-    const subscriptionsQuick = el("subscriptionsQuick");
-
-    // Buttons/outputs
-    const calcBtn = el("calcBtn");
-    const result = el("result");
-    const tips = el("tips");
-    const exportCsvBtn = el("exportCsvBtn");
-
-    const saveBudgetBtn = el("saveBudgetBtn");
-    const saveHint = el("saveHint");
-
-    // Premium wrapper
-    const premiumPill = el("premiumPill");
-    const premiumPillAccount = el("premiumPillAccount");
-    const premiumGateLabelCalc = el("premiumGateLabelCalc");
-    const premiumLockedCalc = el("premiumLockedCalc");
-    const premiumAreaCalc = el("premiumAreaCalc");
-
-    // Premium: subs
-    const subName = el("subName");
-    const subCost = el("subCost");
-    const addSubBtn = el("addSubBtn");
-    const subsList = el("subsList");
-    const subsWeeklyTotal = el("subsWeeklyTotal");
-    const subsInsight = el("subsInsight");
-
-    // Premium: breakdown bars
-    const barNights = el("barNights");
-    const barFood = el("barFood");
-    const barSubs = el("barSubs");
-    const barLeft = el("barLeft");
-    const valNights = el("valNights");
-    const valFood = el("valFood");
-    const valSubs = el("valSubs");
-    const valLeft = el("valLeft");
-    const insightText = el("insightText");
-
-    // Premium: term forecast
-    const termWeeks = el("termWeeks");
-    const termStart = el("termStart");
-    const termForecastBtn = el("termForecastBtn");
-    const termResult = el("termResult");
-    const exportTermCsvBtn = el("exportTermCsvBtn");
-
-    // Premium: scenarios
-    const scnOneLessNight = el("scnOneLessNight");
-    const scnCheaperFood = el("scnCheaperFood");
-    const scnCutSubs20 = el("scnCutSubs20");
-    const scnNoUbers = el("scnNoUbers");
-    const uberCost = el("uberCost");
-    const runScenariosBtn = el("runScenariosBtn");
-    const scenarioResult = el("scenarioResult");
-
-    // Premium: challenges
-    const challengeGoal = el("challengeGoal");
-    const challengeWeeks = el("challengeWeeks");
-    const challengeSaved = el("challengeSaved");
-    const challengeBtn = el("challengeBtn");
-    const challengeResult = el("challengeResult");
-
-    // Account page
-    const userStatus = el("user-status");
-    const googleSignInBtn = el("googleSignInBtn");
-    const logoutBtn = el("logoutBtn");
-
-    const prefUni = el("prefUni");
-    const prefFood = el("prefFood");
-    const prefNights = el("prefNights");
-    const prefSubs = el("prefSubs");
-    const saveProfileBtn = el("saveProfileBtn");
-    const profileHint = el("profileHint");
-
-    const loadBudgetBtn = el("loadBudgetBtn");
-    const loadHint = el("loadHint");
-    const loadStatus = el("loadStatus");
-
-    // History
-    const historyGateLabel = el("historyGateLabel");
-    const historyLocked = el("historyLocked");
-    const history = el("history");
-    const historyList = el("historyList");
-
-    // Premium subscribe
-    const subscribeBtn = el("subscribeBtn");
-    const manageBtn = el("manageBtn");
-    const premiumStatusText = el("premiumStatusText");
-
-    /* =========================
-       State
-       ========================= */
     let currentUser = null;
     let isPremium = false;
     let unsubSubListener = null;
 
     let universities = [];
     let cityCosts = {};
-
-    // Premium: subscription items
-    let subItems = []; // [{name, monthlyCost}]
-    // Last calc snapshot
+    let subItems = []; // [{id,name,monthlyCost}]
     let lastCalculated = null;
+
+    /* =========================
+       Navigation
+       ========================= */
+    const pages = ["home", "calculator", "account"];
+    document.querySelectorAll(".nav-link").forEach(btn => {
+      btn.addEventListener("click", () => showPage(btn.dataset.page));
+    });
+
+    function showPage(p) {
+      pages.forEach(x => el("page-" + x).classList.toggle("active", x === p));
+      document.querySelectorAll(".nav-link").forEach(b => b.classList.toggle("active", b.dataset.page === p));
+      window.scrollTo(0, 0);
+    }
+
+    el("go-calc").addEventListener("click", () => showPage("calculator"));
+    el("go-account").addEventListener("click", () => showPage("account"));
 
     /* =========================
        Auth
@@ -540,60 +458,53 @@
     }
     function logout() { auth.signOut(); }
 
-    googleSignInBtn.addEventListener("click", loginWithGoogle);
-    logoutBtn.addEventListener("click", logout);
+    el("googleSignInBtn").addEventListener("click", loginWithGoogle);
+    el("logoutBtn").addEventListener("click", logout);
 
     auth.onAuthStateChanged(async (user) => {
       currentUser = user || null;
 
       if (!currentUser) {
-        userStatus.innerText = "Not signed in";
-        logoutBtn.style.display = "none";
+        el("user-status").innerText = "Not signed in";
+        el("logoutBtn").style.display = "none";
 
-        saveBudgetBtn.disabled = true;
-        saveHint.innerText = "Sign in to save your budget.";
+        el("saveBudgetBtn").disabled = true;
+        el("saveHint").innerText = "Sign in to save your budget.";
 
-        loadBudgetBtn.disabled = true;
-        loadHint.innerText = "Sign in to load saved budgets.";
+        el("loadBudgetBtn").disabled = true;
+        el("loadHint").innerText = "Sign in to load saved budgets.";
 
-        saveProfileBtn.disabled = true;
-        profileHint.innerText = "Sign in to save preferences.";
+        el("saveProfileBtn").disabled = true;
+        el("profileHint").innerText = "Sign in to save preferences.";
 
-        subscribeBtn.disabled = true;
-        manageBtn.disabled = true;
-        manageBtn.style.display = "none";
-        premiumStatusText.innerText = "Sign in to subscribe.";
+        el("subscribeBtn").disabled = true;
+        el("manageBtn").disabled = true;
+        el("manageBtn").style.display = "none";
+        el("premiumStatusText").innerText = "Sign in to subscribe.";
 
         if (typeof unsubSubListener === "function") unsubSubListener();
         setPremium(false);
         return;
       }
 
-      userStatus.innerText = "Signed in as " + currentUser.displayName;
-      logoutBtn.style.display = "inline-block";
+      el("user-status").innerText = "Signed in as " + currentUser.displayName;
+      el("logoutBtn").style.display = "inline-block";
 
-      saveBudgetBtn.disabled = false;
-      saveHint.innerText = "You can save budgets to your account.";
+      el("saveBudgetBtn").disabled = false;
+      el("saveHint").innerText = "You can save budgets to your account.";
 
-      loadBudgetBtn.disabled = false;
-      loadHint.innerText = "Load your last saved budget anytime.";
+      el("loadBudgetBtn").disabled = false;
+      el("loadHint").innerText = "Load your last saved budget anytime.";
 
-      saveProfileBtn.disabled = false;
-      profileHint.innerText = "Preferences will sync to your account.";
+      el("saveProfileBtn").disabled = false;
+      el("profileHint").innerText = "Preferences will sync to your account.";
 
-      subscribeBtn.disabled = false;
-      premiumStatusText.innerText = "Checking subscription…";
+      el("subscribeBtn").disabled = false;
+      el("premiumStatusText").innerText = "Checking subscription…";
 
-      // Load preferences
       await loadProfile();
-
-      // Listen to Stripe subscription
       listenToSubscriptionStatus();
-
-      // Auto-load last budget silently
       await loadLastBudget(false);
-
-      // Load premium subscription items if premium
       await loadPremiumSubItems();
     });
 
@@ -603,16 +514,16 @@
     function setPremium(enabled) {
       isPremium = !!enabled;
 
-      premiumPill.style.display = isPremium ? "inline-flex" : "none";
-      premiumPillAccount.style.display = isPremium ? "inline-flex" : "none";
+      el("premiumPill").style.display = isPremium ? "inline-flex" : "none";
+      el("premiumPillAccount").style.display = isPremium ? "inline-flex" : "none";
 
-      premiumGateLabelCalc.innerText = isPremium ? "Unlocked" : "Premium feature";
-      premiumLockedCalc.style.display = isPremium ? "none" : "block";
-      premiumAreaCalc.style.display = isPremium ? "block" : "none";
+      el("premiumGateLabelCalc").innerText = isPremium ? "Unlocked" : "Premium feature";
+      el("premiumLockedCalc").style.display = isPremium ? "none" : "block";
+      el("premiumAreaCalc").style.display = isPremium ? "block" : "none";
 
-      historyGateLabel.innerText = isPremium ? "Unlocked" : "Premium feature";
-      historyLocked.style.display = isPremium ? "none" : "block";
-      history.style.display = isPremium ? "block" : "none";
+      el("historyGateLabel").innerText = isPremium ? "Unlocked" : "Premium feature";
+      el("historyLocked").style.display = isPremium ? "none" : "block";
+      el("history").style.display = isPremium ? "block" : "none";
     }
 
     function listenToSubscriptionStatus() {
@@ -633,30 +544,32 @@
           setPremium(active);
 
           if (active) {
-            manageBtn.style.display = "inline-flex";
-            manageBtn.disabled = false;
-            premiumStatusText.innerText = "Premium active ✅";
+            el("manageBtn").style.display = "inline-flex";
+            el("manageBtn").disabled = false;
+            el("premiumStatusText").innerText = "Premium active ✅";
             loadBudgetHistory();
             loadPremiumSubItems();
           } else {
-            manageBtn.style.display = "none";
-            premiumStatusText.innerText = "Premium not active.";
+            el("manageBtn").style.display = "none";
+            el("premiumStatusText").innerText = "Premium not active.";
           }
         }, (err) => {
           console.error(err);
-          premiumStatusText.innerText = "Could not check subscription.";
+          el("premiumStatusText").innerText = "Could not check subscription.";
           setPremium(false);
         });
     }
 
     /* =========================
        Stripe Extension: Subscribe + Portal
+       (NO products sync required)
        ========================= */
-    subscribeBtn.addEventListener("click", startPremiumCheckout);
-    manageBtn.addEventListener("click", openCustomerPortal);
+    el("subscribeBtn").addEventListener("click", startPremiumCheckout);
+    el("manageBtn").addEventListener("click", openCustomerPortal);
 
     async function startPremiumCheckout() {
       if (!currentUser) return alert("Please sign in first.");
+
       try {
         const docRef = await db
           .collection("customers")
@@ -664,7 +577,7 @@
           .collection("checkout_sessions")
           .add({
             mode: "subscription",
-            price: PRICE_ID,
+            price: PRICE_ID, // <-- fixed: uses hardcoded price id, no syncing needed
             success_url: window.location.href,
             cancel_url: window.location.href,
           });
@@ -703,24 +616,24 @@
       universities = u;
       cityCosts = c;
 
-      uni.innerHTML = "";
-      prefUni.innerHTML = "";
+      el("uni").innerHTML = "";
+      el("prefUni").innerHTML = "";
 
       universities.forEach((uniObj, i) => {
         const opt1 = document.createElement("option");
         opt1.value = i;
         opt1.textContent = uniObj.name;
-        uni.appendChild(opt1);
+        el("uni").appendChild(opt1);
 
         const opt2 = document.createElement("option");
         opt2.value = i;
         opt2.textContent = uniObj.name;
-        prefUni.appendChild(opt2);
+        el("prefUni").appendChild(opt2);
       });
     }).catch(err => {
       console.error(err);
-      uni.innerHTML = "<option>Failed to load universities</option>";
-      prefUni.innerHTML = "<option>Failed to load universities</option>";
+      el("uni").innerHTML = "<option>Failed to load universities</option>";
+      el("prefUni").innerHTML = "<option>Failed to load universities</option>";
     });
 
     /* =========================
@@ -733,37 +646,36 @@
       const userDocRef = db.collection("users").doc(uid);
       const snap = await userDocRef.get();
       const data = snap.exists ? snap.data() : {};
-
       const profile = data.profile || {};
 
-      if (typeof profile.defaultUniIndex === "number") prefUni.value = profile.defaultUniIndex;
-      if (profile.defaultFood != null) prefFood.value = String(profile.defaultFood);
-      if (typeof profile.defaultNights === "number") prefNights.value = profile.defaultNights;
-      if (typeof profile.defaultSubscriptions === "number") prefSubs.value = profile.defaultSubscriptions;
+      if (typeof profile.defaultUniIndex === "number") el("prefUni").value = profile.defaultUniIndex;
+      if (profile.defaultFood != null) el("prefFood").value = String(profile.defaultFood);
+      if (typeof profile.defaultNights === "number") el("prefNights").value = profile.defaultNights;
+      if (typeof profile.defaultSubscriptions === "number") el("prefSubs").value = profile.defaultSubscriptions;
 
-      applyPreferencesToCalculator(profile, { onlyIfEmpty: true });
+      // apply to calculator if empty
+      if (typeof profile.defaultUniIndex === "number" && !el("uni").value) el("uni").value = profile.defaultUniIndex;
+      if (profile.defaultFood != null && !el("food").value) el("food").value = String(profile.defaultFood);
+      if (typeof profile.defaultNights === "number" && !el("nights").value) el("nights").value = profile.defaultNights;
+      if (typeof profile.defaultSubscriptions === "number" && !el("subscriptionsQuick").value) el("subscriptionsQuick").value = profile.defaultSubscriptions;
     }
 
-    saveProfileBtn.addEventListener("click", saveProfile);
+    el("saveProfileBtn").addEventListener("click", saveProfile);
 
     async function saveProfile() {
       if (!currentUser) return alert("Please sign in to save preferences.");
 
       const uid = currentUser.uid;
-      const userDocRef = db.collection("users").doc(uid);
-
       const profile = {
-        defaultUniIndex: Number(prefUni.value),
-        defaultFood: Number(prefFood.value),
-        defaultNights: Number(prefNights.value) || 0,
-        defaultSubscriptions: Number(prefSubs.value) || 0,
+        defaultUniIndex: Number(el("prefUni").value),
+        defaultFood: Number(el("prefFood").value),
+        defaultNights: Number(el("prefNights").value) || 0,
+        defaultSubscriptions: Number(el("prefSubs").value) || 0,
         updatedAt: new Date().toISOString()
       };
 
       try {
-        await userDocRef.set({ profile }, { merge: true });
-
-        applyPreferencesToCalculator(profile, { onlyIfEmpty: false });
+        await db.collection("users").doc(uid).set({ profile }, { merge: true });
         alert("Preferences saved ✅");
       } catch (e) {
         console.error(e);
@@ -771,26 +683,9 @@
       }
     }
 
-    function applyPreferencesToCalculator(profile, opts) {
-      const onlyIfEmpty = !!opts.onlyIfEmpty;
-
-      if (typeof profile.defaultUniIndex === "number") {
-        if (!onlyIfEmpty || uni.value === "" || uni.value == null) uni.value = profile.defaultUniIndex;
-      }
-      if (profile.defaultFood != null) {
-        if (!onlyIfEmpty || food.value === "" || food.value == null) food.value = String(profile.defaultFood);
-      }
-      if (typeof profile.defaultNights === "number") {
-        if (!onlyIfEmpty || !nights.value) nights.value = profile.defaultNights;
-      }
-      if (typeof profile.defaultSubscriptions === "number") {
-        if (!onlyIfEmpty || !subscriptionsQuick.value) subscriptionsQuick.value = profile.defaultSubscriptions;
-      }
-    }
-
     /* =========================
-       Premium: subscription manager data in Firestore
-       Stored under users/{uid}/subscriptionItems
+       Premium: subscription manager storage
+       users/{uid}/subscriptionItems
        ========================= */
     async function loadPremiumSubItems() {
       if (!currentUser || !isPremium) return;
@@ -813,12 +708,12 @@
       }
     }
 
-    addSubBtn.addEventListener("click", async () => {
+    el("addSubBtn").addEventListener("click", async () => {
       if (!isPremium) return alert("Premium required for subscription manager.");
       if (!currentUser) return alert("Sign in first.");
 
-      const name = (subName.value || "").trim();
-      const cost = Number(subCost.value || 0);
+      const name = (el("subName").value || "").trim();
+      const cost = Number(el("subCost").value || 0);
 
       if (!name) return alert("Enter a subscription name.");
       if (cost <= 0) return alert("Enter a monthly cost.");
@@ -833,10 +728,10 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
 
-        subName.value = "";
-        subCost.value = "";
+        el("subName").value = "";
+        el("subCost").value = "";
         await loadPremiumSubItems();
-        calculateBudget(); // refresh premium totals
+        calculateBudget();
       } catch (e) {
         console.error(e);
         alert("Could not add subscription: " + e.message);
@@ -855,22 +750,25 @@
       }
     }
 
+    function getPremiumSubsWeeklyTotal() {
+      if (!isPremium) return 0;
+      return subItems.reduce((sum, x) => sum + (Number(x.monthlyCost || 0) / 4), 0);
+    }
+
     function renderSubItems() {
-      subsList.innerHTML = "";
       const weeklyTotal = getPremiumSubsWeeklyTotal();
-      subsWeeklyTotal.innerText = "Weekly: " + fmt(weeklyTotal);
+      el("subsWeeklyTotal").innerText = "Weekly: " + fmt(weeklyTotal);
 
       if (!subItems.length) {
-        subsList.innerHTML = `<div class="muted small">No subscriptions added yet.</div>`;
-        subsInsight.innerText = "";
+        el("subsList").innerHTML = `<div class="muted small">No subscriptions added yet.</div>`;
+        el("subsInsight").innerText = "";
         return;
       }
 
-      // biggest subscription insight
       const biggest = subItems.reduce((a, b) => (b.monthlyCost > a.monthlyCost ? b : a), subItems[0]);
-      subsInsight.innerText = `Biggest subscription: ${biggest.name} (${fmt(biggest.monthlyCost)}/month).`;
+      el("subsInsight").innerText = `Biggest subscription: ${biggest.name} (${fmt(biggest.monthlyCost)}/month).`;
 
-      const rows = subItems.map(item => `
+      el("subsList").innerHTML = subItems.map(item => `
         <div class="history-item">
           <div>
             <div class="history-title">${escapeHtml(item.name)}</div>
@@ -880,37 +778,37 @@
             <button class="secondary history-btn" data-sub-id="${item.id}">Remove</button>
           </div>
         </div>
-      `);
+      `).join("");
 
-      subsList.innerHTML = rows.join("");
-      subsList.querySelectorAll("button[data-sub-id]").forEach(btn => {
+      el("subsList").querySelectorAll("button[data-sub-id]").forEach(btn => {
         btn.addEventListener("click", () => deleteSubItem(btn.getAttribute("data-sub-id")));
       });
     }
 
-    function getPremiumSubsWeeklyTotal() {
-      if (!isPremium) return 0;
-      return subItems.reduce((sum, x) => sum + (Number(x.monthlyCost || 0) / 4), 0);
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[s]));
     }
 
     /* =========================
-       Calculator + insights
+       Calculator + Premium breakdown
        ========================= */
-    calcBtn.addEventListener("click", calculateBudget);
+    el("calcBtn").addEventListener("click", calculateBudget);
 
     function calculateBudget() {
-      const loanVal = Number(loan.value) || 0;
-      const wageVal = Number(wage.value) || 0;
-      const personalVal = Number(personal.value) || 0;
-      const nightsVal = Number(nights.value) || 0;
-      const foodCost = Number(food.value) || 0;
+      const loanVal = Number(el("loan").value) || 0;
+      const wageVal = Number(el("wage").value) || 0;
+      const personalVal = Number(el("personal").value) || 0;
+      const nightsVal = Number(el("nights").value) || 0;
+      const foodCost = Number(el("food").value) || 0;
 
       const weeklyIncome = loanVal / 52 + wageVal / 4 + personalVal / 52;
 
-      const uniObj = universities[Number(uni.value)];
+      const uniObj = universities[Number(el("uni").value)];
       if (!uniObj) {
-        result.innerText = "Please select a university.";
-        tips.innerHTML = "";
+        el("result").innerText = "Please select a university.";
+        el("tips").innerHTML = "";
         lastCalculated = null;
         return;
       }
@@ -918,26 +816,22 @@
       const nightCost = Number(cityCosts[uniObj.city] || 0);
       const nightTotal = nightsVal * nightCost;
 
-      // Subscriptions:
-      // Free uses subscriptionsQuick; Premium uses detailed list + still includes quick if user wants
-      const quickMonthly = Number(subscriptionsQuick.value || 0);
+      const quickMonthly = Number(el("subscriptionsQuick").value || 0);
       const quickWeekly = quickMonthly / 4;
+
       const premiumWeekly = getPremiumSubsWeeklyTotal();
-      const subsWeekly = isPremium ? Math.max(quickWeekly, premiumWeekly) : quickWeekly; 
-      // (If premium user uses both, take the larger to avoid double counting. You can change this later.)
+      const subsWeekly = isPremium ? Math.max(quickWeekly, premiumWeekly) : quickWeekly;
 
       const weeklySpent = nightTotal + foodCost + subsWeekly;
       const balance = weeklyIncome - weeklySpent;
 
-      // FREE messages
       const status =
         balance < 0 ? "🔴 Overspending" :
         balance < 30 ? "🟠 Tight budget" :
         "🟢 Safe budget";
 
-      result.innerText = `${status} – Weekly balance ${fmt(balance)}`;
+      el("result").innerText = `${status} – Weekly balance ${fmt(balance)}`;
 
-      // Free tips
       let tipsText = "";
       if (subsWeekly > 10) tipsText += `• Subscriptions cost ~${fmt(subsWeekly)} per week.<br>`;
       if (nightsVal > 0 && nightCost > 0) tipsText += `• One fewer night out saves about ${fmt(nightCost)} per week.<br>`;
@@ -945,45 +839,42 @@
         const cheaperFood = (foodCost === 60) ? 40 : 25;
         tipsText += `• Cheaper food choice saves ${fmt(foodCost - cheaperFood)} per week.<br>`;
       }
-      tips.innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
+      el("tips").innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
 
-      // PREMIUM: breakdown + insight
+      // Premium breakdown bars
       if (isPremium) {
-        const spent = Math.max(weeklySpent, 0);
-        const left = Math.max(weeklyIncome - spent, 0);
         const denom = Math.max(weeklyIncome, 1);
+        const left = Math.max(weeklyIncome - weeklySpent, 0);
 
-        setBar(barNights, nightTotal / denom);
-        setBar(barFood, foodCost / denom);
-        setBar(barSubs, subsWeekly / denom);
-        setBar(barLeft, left / denom);
+        el("barNights").style.width = (clamp01(nightTotal / denom) * 100).toFixed(1) + "%";
+        el("barFood").style.width = (clamp01(foodCost / denom) * 100).toFixed(1) + "%";
+        el("barSubs").style.width = (clamp01(subsWeekly / denom) * 100).toFixed(1) + "%";
+        el("barLeft").style.width = (clamp01(left / denom) * 100).toFixed(1) + "%";
 
-        valNights.innerText = fmt(nightTotal);
-        valFood.innerText = fmt(foodCost);
-        valSubs.innerText = fmt(subsWeekly);
-        valLeft.innerText = fmt(left);
+        el("valNights").innerText = fmt(nightTotal);
+        el("valFood").innerText = fmt(foodCost);
+        el("valSubs").innerText = fmt(subsWeekly);
+        el("valLeft").innerText = fmt(left);
 
         const biggest = maxKey({ nights: nightTotal, food: foodCost, subs: subsWeekly });
-        insightText.innerText =
+        el("insightText").innerText =
           biggest === "nights" ? "Your biggest cost is nights out. Reducing by 1 night can make a big difference." :
           biggest === "food" ? "Your biggest cost is food. A lower food tier could stabilise your week." :
           "Your biggest cost is subscriptions. Review the subscription manager and cut what you don’t use.";
       }
 
-      // Store last calculation snapshot
       lastCalculated = {
         createdAt: new Date().toISOString(),
         inputs: {
           loanPerYear: loanVal,
           wagePerMonth: wageVal,
           personalFunds: personalVal,
-          uniIndex: Number(uni.value),
+          uniIndex: Number(el("uni").value),
           uniName: uniObj.name,
           city: uniObj.city,
           foodPerWeek: foodCost,
           nightsOutPerWeek: nightsVal,
-          subscriptionsQuickPerMonth: quickMonthly,
-          premiumSubsUsedWeekly: subsWeekly
+          subscriptionsQuickPerMonth: quickMonthly
         },
         derived: {
           nightCostPerNight: nightCost,
@@ -995,13 +886,6 @@
           weeklyBalance: Number(balance.toFixed(2))
         }
       };
-
-      // refresh sub UI totals
-      if (isPremium) renderSubItems();
-    }
-
-    function setBar(node, ratio) {
-      node.style.width = (clamp01(ratio) * 100).toFixed(1) + "%";
     }
 
     function maxKey(obj) {
@@ -1013,212 +897,10 @@
     }
 
     /* =========================
-       Premium: Term forecast
-       ========================= */
-    termForecastBtn.addEventListener("click", () => {
-      if (!isPremium) return alert("Premium required for term forecasting.");
-      if (!lastCalculated) return alert("Calculate your budget first.");
-      runTermForecast();
-    });
-
-    function runTermForecast() {
-      const weeks = Number(termWeeks.value) || 0;
-      if (weeks <= 0) {
-        termResult.innerText = "Enter weeks left in term.";
-        return;
-      }
-
-      const weeklyBalance = Number(lastCalculated.derived.weeklyBalance || 0);
-      const weeklySpent = Number(lastCalculated.derived.weeklySpent || 0);
-      const weeklyIncome = Number(lastCalculated.derived.weeklyIncome || 0);
-
-      // Simple forecasting: savings after N weeks if positive, or deficit growth if negative
-      const endValue = weeklyBalance * weeks;
-
-      let msg = "";
-      if (weeklyBalance >= 0) {
-        msg = `✅ At this pace, you could have about ${fmt(endValue)} left/saved after ${weeks} weeks.`;
-      } else {
-        msg = `⚠️ At this pace, you will be short by about ${fmt(Math.abs(endValue))} over ${weeks} weeks.`;
-      }
-
-      const startDate = termStart.value ? new Date(termStart.value) : null;
-      let endDateText = "";
-      if (startDate) {
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + (weeks * 7));
-        endDateText = ` End date: ${endDate.toLocaleDateString()}.`;
-      }
-
-      termResult.innerText =
-        `${msg}${endDateText}\nWeekly income: ${fmt(weeklyIncome)} | Weekly spend: ${fmt(weeklySpent)} | Weekly balance: ${fmt(weeklyBalance)}`;
-    }
-
-    exportTermCsvBtn.addEventListener("click", () => {
-      if (!isPremium) return alert("Premium required for term export.");
-      if (!lastCalculated) return alert("Calculate your budget first.");
-      const weeks = Number(termWeeks.value) || 0;
-      if (weeks <= 0) return alert("Enter weeks left in term first.");
-      downloadTermCsv(weeks);
-    });
-
-    function downloadTermCsv(weeks) {
-      const wIncome = Number(lastCalculated.derived.weeklyIncome || 0);
-      const wSpend = Number(lastCalculated.derived.weeklySpent || 0);
-      const wBal = Number(lastCalculated.derived.weeklyBalance || 0);
-
-      const rows = [
-        ["metric", "weekly", "term_total_weeks_" + weeks],
-        ["income", wIncome.toFixed(2), (wIncome * weeks).toFixed(2)],
-        ["spend", wSpend.toFixed(2), (wSpend * weeks).toFixed(2)],
-        ["balance", wBal.toFixed(2), (wBal * weeks).toFixed(2)],
-      ];
-
-      const csv = rows.map(r => r.join(",")).join("\n");
-      downloadTextFile(csv, `univio_term_summary_${weeks}w.csv`, "text/csv");
-    }
-
-    /* =========================
-       Premium: What-if scenarios
-       ========================= */
-    runScenariosBtn.addEventListener("click", () => {
-      if (!isPremium) return alert("Premium required for scenarios.");
-      if (!lastCalculated) return alert("Calculate your budget first.");
-      runScenarios();
-    });
-
-    function runScenarios() {
-      const base = structuredCloneSafe(lastCalculated);
-
-      const baseBalance = Number(base.derived.weeklyBalance || 0);
-      const baseSpent = Number(base.derived.weeklySpent || 0);
-
-      // reconstruct needed parts
-      const nightsVal = Number(base.inputs.nightsOutPerWeek || 0);
-      const nightCost = Number(base.derived.nightCostPerNight || 0);
-      const foodCost = Number(base.inputs.foodPerWeek || 0);
-      const subsWeekly = Number(base.derived.weeklySubs || 0);
-
-      let nightsNew = nightsVal;
-      let foodNew = foodCost;
-      let subsNew = subsWeekly;
-      let uberSavings = 0;
-
-      if (scnOneLessNight.checked) nightsNew = Math.max(0, nightsVal - 1);
-      if (scnCheaperFood.checked) {
-        // cheaper tier logic
-        foodNew = foodCost === 60 ? 40 : (foodCost === 40 ? 25 : 25);
-      }
-      if (scnCutSubs20.checked) subsNew = subsWeekly * 0.8;
-      if (scnNoUbers.checked) {
-        const uCost = Number(uberCost.value || 0);
-        uberSavings = Math.max(0, uCost); // replace 1 uber/week with walking
-      }
-
-      const newNightTotal = nightsNew * nightCost;
-      const newSpent = newNightTotal + foodNew + subsNew - uberSavings;
-      const weeklyIncome = Number(base.derived.weeklyIncome || 0);
-      const newBalance = weeklyIncome - newSpent;
-
-      const delta = newBalance - baseBalance;
-
-      scenarioResult.innerText =
-        `Base weekly balance: ${fmt(baseBalance)}\n` +
-        `Scenario weekly balance: ${fmt(newBalance)}\n` +
-        `Change: ${delta >= 0 ? "+" : ""}${fmt(delta)}\n\n` +
-        `Scenario details:\n` +
-        `• Nights out: ${nightsVal} → ${nightsNew} (night cost ${fmt(nightCost)})\n` +
-        `• Food: ${fmt(foodCost)} → ${fmt(foodNew)}\n` +
-        `• Subscriptions: ${fmt(subsWeekly)} → ${fmt(subsNew)}\n` +
-        `• Uber savings: ${fmt(uberSavings)}`;
-    }
-
-    function structuredCloneSafe(obj) {
-      try { return structuredClone(obj); } catch { return JSON.parse(JSON.stringify(obj)); }
-    }
-
-    /* =========================
-       Premium: Savings challenges
-       ========================= */
-    challengeBtn.addEventListener("click", () => {
-      if (!isPremium) return alert("Premium required for challenges.");
-      if (!lastCalculated) return alert("Calculate your budget first.");
-      runChallenge();
-    });
-
-    function runChallenge() {
-      const goal = Number(challengeGoal.value || 0);
-      const weeks = Number(challengeWeeks.value || 0);
-      const saved = Number(challengeSaved.value || 0);
-
-      if (goal <= 0 || weeks <= 0) {
-        challengeResult.innerText = "Enter a goal and deadline weeks.";
-        return;
-      }
-
-      const remaining = Math.max(0, goal - saved);
-      const weeklyTarget = remaining / weeks;
-
-      const weeklyBalance = Number(lastCalculated.derived.weeklyBalance || 0);
-
-      let msg = `Goal: ${fmt(goal)} | Already saved: ${fmt(saved)}\nRemaining: ${fmt(remaining)}\nWeekly target: ${fmt(weeklyTarget)}\n\n`;
-
-      if (weeklyBalance >= weeklyTarget) {
-        msg += `✅ Your current weekly balance (${fmt(weeklyBalance)}) is enough to hit this goal.`;
-      } else if (weeklyBalance > 0) {
-        msg += `⚠️ You’re short by about ${fmt(weeklyTarget - weeklyBalance)} per week. Use scenarios to cut spending.`;
-      } else {
-        msg += `🔴 You’re currently overspending. Reduce weekly spend before starting the challenge.`;
-      }
-
-      challengeResult.innerText = msg;
-    }
-
-    /* =========================
-       Export (FREE): latest calc CSV
-       ========================= */
-    exportCsvBtn.addEventListener("click", () => {
-      if (!lastCalculated) return alert("Calculate your budget first.");
-      downloadLatestCalcCsv();
-    });
-
-    function downloadLatestCalcCsv() {
-      const d = lastCalculated;
-
-      const rows = [
-        ["field", "value"],
-        ["timestamp", d.createdAt],
-        ["university", d.inputs.uniName],
-        ["city", d.inputs.city],
-        ["weekly_income", d.derived.weeklyIncome.toFixed(2)],
-        ["weekly_spent", d.derived.weeklySpent.toFixed(2)],
-        ["weekly_balance", d.derived.weeklyBalance.toFixed(2)],
-        ["weekly_nights_total", d.derived.weeklyNightTotal.toFixed(2)],
-        ["weekly_food", d.derived.weeklyFood.toFixed(2)],
-        ["weekly_subscriptions", d.derived.weeklySubs.toFixed(2)],
-      ];
-
-      const csv = rows.map(r => r.join(",")).join("\n");
-      downloadTextFile(csv, "univio_latest_budget.csv", "text/csv");
-    }
-
-    function downloadTextFile(text, filename, mime) {
-      const blob = new Blob([text], { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    /* =========================
        Save / Load budgets
        ========================= */
-    saveBudgetBtn.addEventListener("click", saveBudget);
-    loadBudgetBtn.addEventListener("click", () => loadLastBudget(true));
+    el("saveBudgetBtn").addEventListener("click", saveBudget);
+    el("loadBudgetBtn").addEventListener("click", () => loadLastBudget(true));
 
     async function saveBudget() {
       if (!currentUser) return alert("Please sign in to save your budget.");
@@ -1243,8 +925,7 @@
 
     async function loadLastBudget(showUI) {
       if (!currentUser) return;
-
-      if (showUI) loadStatus.innerText = "Loading…";
+      if (showUI) el("loadStatus").innerText = "Loading…";
 
       try {
         const snap = await db.collection("users")
@@ -1255,31 +936,29 @@
           .get();
 
         if (snap.empty) {
-          if (showUI) loadStatus.innerText = "No saved budgets yet.";
+          if (showUI) el("loadStatus").innerText = "No saved budgets yet.";
           return;
         }
 
         const data = snap.docs[0].data();
+        el("loan").value = data.inputs?.loanPerYear ?? 0;
+        el("wage").value = data.inputs?.wagePerMonth ?? 0;
+        el("personal").value = data.inputs?.personalFunds ?? 0;
+        el("nights").value = data.inputs?.nightsOutPerWeek ?? 0;
+        el("food").value = String(data.inputs?.foodPerWeek ?? 25);
+        el("subscriptionsQuick").value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
 
-        loan.value = data.inputs?.loanPerYear ?? 0;
-        wage.value = data.inputs?.wagePerMonth ?? 0;
-        personal.value = data.inputs?.personalFunds ?? 0;
-        nights.value = data.inputs?.nightsOutPerWeek ?? 0;
-        food.value = String(data.inputs?.foodPerWeek ?? 25);
-
-        subscriptionsQuick.value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
-
-        if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
+        if (typeof data.inputs?.uniIndex === "number") el("uni").value = data.inputs.uniIndex;
 
         calculateBudget();
 
         if (showUI) {
-          loadStatus.innerText = "Loaded ✅";
+          el("loadStatus").innerText = "Loaded ✅";
           showPage("calculator");
         }
       } catch (e) {
         console.error(e);
-        if (showUI) loadStatus.innerText = "";
+        if (showUI) el("loadStatus").innerText = "";
         if (showUI) alert("Load failed: " + e.message);
       }
     }
@@ -1290,7 +969,7 @@
     async function loadBudgetHistory() {
       if (!currentUser || !isPremium) return;
 
-      historyList.innerHTML = `<div class="muted small">Loading history…</div>`;
+      el("historyList").innerHTML = `<div class="muted small">Loading history…</div>`;
 
       try {
         const snap = await db.collection("users")
@@ -1301,19 +980,18 @@
           .get();
 
         if (snap.empty) {
-          historyList.innerHTML = `<div class="muted small">No saved budgets yet.</div>`;
+          el("historyList").innerHTML = `<div class="muted small">No saved budgets yet.</div>`;
           return;
         }
 
-        const rows = [];
-        snap.forEach(doc => {
+        el("historyList").innerHTML = snap.docs.map(doc => {
           const d = doc.data();
           const ts = d.savedAt?.toDate ? d.savedAt.toDate() : null;
           const when = ts ? ts.toLocaleString() : (d.createdAt || "Saved");
           const balance = d.derived?.weeklyBalance ?? 0;
           const uniName = d.inputs?.uniName ?? "University";
 
-          rows.push(`
+          return `
             <div class="history-item">
               <div>
                 <div class="history-title">${escapeHtml(uniName)}</div>
@@ -1324,17 +1002,16 @@
                 <button class="secondary history-btn" data-budget-id="${doc.id}">Load</button>
               </div>
             </div>
-          `);
-        });
+          `;
+        }).join("");
 
-        historyList.innerHTML = rows.join("");
-        historyList.querySelectorAll("button[data-budget-id]").forEach(btn => {
+        el("historyList").querySelectorAll("button[data-budget-id]").forEach(btn => {
           btn.addEventListener("click", () => loadBudgetById(btn.getAttribute("data-budget-id")));
         });
 
       } catch (e) {
         console.error(e);
-        historyList.innerHTML = `<div class="muted small">Failed to load history.</div>`;
+        el("historyList").innerHTML = `<div class="muted small">Failed to load history.</div>`;
       }
     }
 
@@ -1342,20 +1019,18 @@
       if (!currentUser || !isPremium) return;
 
       try {
-        const docRef = db.collection("users").doc(currentUser.uid).collection("budgets").doc(docId);
-        const snap = await docRef.get();
+        const snap = await db.collection("users").doc(currentUser.uid).collection("budgets").doc(docId).get();
         if (!snap.exists) return;
 
         const data = snap.data();
+        el("loan").value = data.inputs?.loanPerYear ?? 0;
+        el("wage").value = data.inputs?.wagePerMonth ?? 0;
+        el("personal").value = data.inputs?.personalFunds ?? 0;
+        el("nights").value = data.inputs?.nightsOutPerWeek ?? 0;
+        el("food").value = String(data.inputs?.foodPerWeek ?? 25);
+        el("subscriptionsQuick").value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
 
-        loan.value = data.inputs?.loanPerYear ?? 0;
-        wage.value = data.inputs?.wagePerMonth ?? 0;
-        personal.value = data.inputs?.personalFunds ?? 0;
-        nights.value = data.inputs?.nightsOutPerWeek ?? 0;
-        food.value = String(data.inputs?.foodPerWeek ?? 25);
-        subscriptionsQuick.value = data.inputs?.subscriptionsQuickPerMonth ?? 0;
-
-        if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
+        if (typeof data.inputs?.uniIndex === "number") el("uni").value = data.inputs.uniIndex;
 
         calculateBudget();
         showPage("calculator");
@@ -1365,36 +1040,127 @@
       }
     }
 
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, s => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[s]));
-    }
-
     /* =========================
-       Navigation
+       Premium tools: term/scenarios/challenges + export
        ========================= */
-    const pages = ["home", "calculator", "account"];
-    document.querySelectorAll(".nav-link").forEach(btn => {
-      btn.addEventListener("click", () => showPage(btn.dataset.page));
+    el("termForecastBtn").addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for term forecasting.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      const weeks = Number(el("termWeeks").value) || 0;
+      if (weeks <= 0) return el("termResult").innerText = "Enter weeks left in term.";
+
+      const wBal = Number(lastCalculated.derived.weeklyBalance || 0);
+      const endValue = wBal * weeks;
+
+      let msg = wBal >= 0
+        ? `✅ At this pace, you could have about ${fmt(endValue)} left/saved after ${weeks} weeks.`
+        : `⚠️ At this pace, you will be short by about ${fmt(Math.abs(endValue))} over ${weeks} weeks.`;
+
+      const startDate = el("termStart").value ? new Date(el("termStart").value) : null;
+      if (startDate) {
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (weeks * 7));
+        msg += ` End date: ${endDate.toLocaleDateString()}.`;
+      }
+
+      el("termResult").innerText = msg;
     });
 
-    function showPage(p) {
-      pages.forEach(x => el("page-" + x).classList.toggle("active", x === p));
-      document.querySelectorAll(".nav-link").forEach(b => b.classList.toggle("active", b.dataset.page === p));
-      window.scrollTo(0, 0);
+    el("runScenariosBtn").addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for scenarios.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+
+      const baseBal = Number(lastCalculated.derived.weeklyBalance || 0);
+      const weeklyIncome = Number(lastCalculated.derived.weeklyIncome || 0);
+      const nightCost = Number(lastCalculated.derived.nightCostPerNight || 0);
+
+      let nightsNew = Number(lastCalculated.inputs.nightsOutPerWeek || 0);
+      let foodNew = Number(lastCalculated.inputs.foodPerWeek || 0);
+      let subsNew = Number(lastCalculated.derived.weeklySubs || 0);
+      let uberSavings = 0;
+
+      if (el("scnOneLessNight").checked) nightsNew = Math.max(0, nightsNew - 1);
+      if (el("scnCheaperFood").checked) foodNew = (foodNew === 60) ? 40 : 25;
+      if (el("scnCutSubs20").checked) subsNew = subsNew * 0.8;
+      if (el("scnNoUbers").checked) uberSavings = Math.max(0, Number(el("uberCost").value || 0));
+
+      const newSpent = (nightsNew * nightCost) + foodNew + subsNew - uberSavings;
+      const newBal = weeklyIncome - newSpent;
+
+      const delta = newBal - baseBal;
+
+      el("scenarioResult").innerText =
+        `Base weekly balance: ${fmt(baseBal)}\nScenario weekly balance: ${fmt(newBal)}\nChange: ${delta >= 0 ? "+" : ""}${fmt(delta)}`;
+    });
+
+    el("challengeBtn").addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for challenges.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+
+      const goal = Number(el("challengeGoal").value || 0);
+      const weeks = Number(el("challengeWeeks").value || 0);
+      const saved = Number(el("challengeSaved").value || 0);
+
+      if (goal <= 0 || weeks <= 0) return el("challengeResult").innerText = "Enter a goal and deadline weeks.";
+
+      const remaining = Math.max(0, goal - saved);
+      const weeklyTarget = remaining / weeks;
+      const weeklyBalance = Number(lastCalculated.derived.weeklyBalance || 0);
+
+      let msg = `Weekly target: ${fmt(weeklyTarget)}\n`;
+      msg += weeklyBalance >= weeklyTarget
+        ? `✅ Your current balance (${fmt(weeklyBalance)}) is enough to hit this goal.`
+        : `⚠️ You’re short by ${fmt(weeklyTarget - weeklyBalance)} per week. Try scenarios to cut spending.`;
+
+      el("challengeResult").innerText = msg;
+    });
+
+    /* Free export: latest calc CSV */
+    el("exportCsvBtn").addEventListener("click", () => {
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      const rows = [
+        ["field", "value"],
+        ["timestamp", lastCalculated.createdAt],
+        ["university", lastCalculated.inputs.uniName],
+        ["weekly_income", lastCalculated.derived.weeklyIncome.toFixed(2)],
+        ["weekly_spent", lastCalculated.derived.weeklySpent.toFixed(2)],
+        ["weekly_balance", lastCalculated.derived.weeklyBalance.toFixed(2)],
+      ];
+      const csv = rows.map(r => r.join(",")).join("\n");
+      downloadText(csv, "univio_latest_budget.csv", "text/csv");
+    });
+
+    el("exportTermCsvBtn").addEventListener("click", () => {
+      if (!isPremium) return alert("Premium required for term export.");
+      if (!lastCalculated) return alert("Calculate your budget first.");
+      const weeks = Number(el("termWeeks").value) || 0;
+      if (weeks <= 0) return alert("Enter weeks left in term first.");
+
+      const wIncome = Number(lastCalculated.derived.weeklyIncome || 0);
+      const wSpend = Number(lastCalculated.derived.weeklySpent || 0);
+      const wBal = Number(lastCalculated.derived.weeklyBalance || 0);
+
+      const rows = [
+        ["metric", "weekly", "term_total_weeks_" + weeks],
+        ["income", wIncome.toFixed(2), (wIncome * weeks).toFixed(2)],
+        ["spend", wSpend.toFixed(2), (wSpend * weeks).toFixed(2)],
+        ["balance", wBal.toFixed(2), (wBal * weeks).toFixed(2)],
+      ];
+      const csv = rows.map(r => r.join(",")).join("\n");
+      downloadText(csv, `univio_term_summary_${weeks}w.csv`, "text/csv");
+    });
+
+    function downloadText(text, filename, mime) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     }
-
-    el("go-calc").addEventListener("click", () => showPage("calculator"));
-    el("go-account").addEventListener("click", () => showPage("account"));
-
-    /* =========================
-       Auto: keep subs weekly total updated visually
-       ========================= */
-    // This is safe even if not premium.
-    setInterval(() => {
-      if (isPremium) renderSubItems();
-    }, 3000);
   </script>
 </body>
 </html>
