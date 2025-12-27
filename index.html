@@ -11,6 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-functions-compat.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -25,6 +26,7 @@
     firebase.initializeApp(firebaseConfig);
     window.auth = firebase.auth();
     window.db = firebase.firestore();
+    window.functions = firebase.functions(); // required for Stripe portal link
   </script>
 </head>
 
@@ -44,7 +46,6 @@
   </header>
 
   <main class="shell">
-
     <!-- HOME -->
     <section id="page-home" class="page active">
       <div class="card">
@@ -116,7 +117,7 @@
             <input id="nights" type="number" placeholder="e.g. 2">
           </label>
 
-          <button class="primary" onclick="calculateBudget()">Calculate</button>
+          <button class="primary" id="calcBtn">Calculate</button>
 
           <div id="result" class="output"></div>
           <div id="tips" class="output tips"></div>
@@ -162,7 +163,7 @@
           </div>
 
           <!-- Save -->
-          <button class="secondary" id="saveBudgetBtn" onclick="saveBudget()" disabled>
+          <button class="secondary" id="saveBudgetBtn" disabled>
             Save this budget to my account
           </button>
           <p class="muted small" id="saveHint">Sign in to save your budget.</p>
@@ -184,8 +185,8 @@
         <p id="user-status" class="muted">Not signed in</p>
 
         <div class="account-actions">
-          <button class="primary" onclick="loginWithGoogle()">Sign in with Google</button>
-          <button class="secondary" onclick="logout()" id="logoutBtn" style="display:none;">Sign out</button>
+          <button class="primary" id="googleSignInBtn">Sign in with Google</button>
+          <button class="secondary" id="logoutBtn" style="display:none;">Sign out</button>
         </div>
 
         <div class="divider"></div>
@@ -219,7 +220,7 @@
             <input id="prefSubs" type="number" placeholder="e.g. 25">
           </label>
 
-          <button class="secondary" id="saveProfileBtn" onclick="saveProfile()" disabled>
+          <button class="secondary" id="saveProfileBtn" disabled>
             Save preferences
           </button>
 
@@ -231,7 +232,7 @@
         <!-- Budgets -->
         <h2>Budgets</h2>
 
-        <button class="secondary" id="loadBudgetBtn" onclick="loadLastBudget(true)" disabled>
+        <button class="secondary" id="loadBudgetBtn" disabled>
           Load my last saved budget
         </button>
         <p class="muted small" id="loadHint">Sign in to load saved budgets.</p>
@@ -258,18 +259,101 @@
         <!-- Premium -->
         <h2>Premium</h2>
         <p class="muted small">
-          Premium unlocks insights + budget history. Payments can be added later — for now you can manually toggle Premium in Firestore.
+          Subscribe to unlock insights + budget history. You can manage/cancel anytime.
         </p>
-        <div class="notice">
-          <strong>How to turn Premium on:</strong> Firestore → Document <code>users/&lt;uid&gt;</code> → set <code>premium</code> to <code>true</code>.
+
+        <div class="premium-actions">
+          <button class="primary" id="subscribeBtn" disabled>Subscribe to Premium</button>
+          <button class="secondary" id="manageBtn" style="display:none;" disabled>Manage subscription</button>
+          <p class="muted small" id="premiumStatusText">Sign in to subscribe.</p>
         </div>
       </div>
     </section>
-
   </main>
 
   <script>
-    /* ---------- AUTH ---------- */
+    /* =========================
+       Stripe Price ID (REQUIRED)
+       ========================= */
+    const PRICE_ID = "price_1SilSr054mpSFuIv9nqPtASC"; // <-- your Stripe PRICE id (must start with price_)
+
+    /* =========================
+       Helpers + element refs
+       ========================= */
+    const el = (id) => document.getElementById(id);
+
+    // Calculator
+    const loan = el("loan");
+    const wage = el("wage");
+    const personal = el("personal");
+    const subscriptions = el("subscriptions");
+    const uni = el("uni");
+    const food = el("food");
+    const nights = el("nights");
+    const calcBtn = el("calcBtn");
+    const result = el("result");
+    const tips = el("tips");
+
+    // Premium insights
+    const insightsGateLabel = el("insightsGateLabel");
+    const insightsLocked = el("insightsLocked");
+    const insights = el("insights");
+    const barNights = el("barNights");
+    const barFood = el("barFood");
+    const barSubs = el("barSubs");
+    const barLeft = el("barLeft");
+    const valNights = el("valNights");
+    const valFood = el("valFood");
+    const valSubs = el("valSubs");
+    const valLeft = el("valLeft");
+    const insightText = el("insightText");
+
+    // Account
+    const userStatus = el("user-status");
+    const googleSignInBtn = el("googleSignInBtn");
+    const logoutBtn = el("logoutBtn");
+
+    const saveBudgetBtn = el("saveBudgetBtn");
+    const saveHint = el("saveHint");
+
+    const loadBudgetBtn = el("loadBudgetBtn");
+    const loadHint = el("loadHint");
+    const loadStatus = el("loadStatus");
+
+    const prefUni = el("prefUni");
+    const prefFood = el("prefFood");
+    const prefNights = el("prefNights");
+    const prefSubs = el("prefSubs");
+    const saveProfileBtn = el("saveProfileBtn");
+    const profileHint = el("profileHint");
+
+    // Premium buttons
+    const subscribeBtn = el("subscribeBtn");
+    const manageBtn = el("manageBtn");
+    const premiumStatusText = el("premiumStatusText");
+
+    // Premium pills / gating
+    const premiumPill = el("premiumPill");
+    const premiumPillAccount = el("premiumPillAccount");
+    const historyGateLabel = el("historyGateLabel");
+    const historyLocked = el("historyLocked");
+    const history = el("history");
+    const historyList = el("historyList");
+
+    /* =========================
+       State
+       ========================= */
+    let currentUser = null;
+    let isPremium = false;
+    let unsubSubListener = null;
+
+    let universities = [];
+    let cityCosts = {};
+    let lastCalculated = null;
+
+    /* =========================
+       Auth
+       ========================= */
     function loginWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch(e => alert(e.message));
@@ -279,89 +363,163 @@
       auth.signOut();
     }
 
-    let currentUser = null;
-    let isPremium = false;
+    googleSignInBtn.addEventListener("click", loginWithGoogle);
+    logoutBtn.addEventListener("click", logout);
 
     auth.onAuthStateChanged(async (user) => {
       currentUser = user || null;
 
-      // UI toggles
-      const status = document.getElementById("user-status");
-      const logoutBtn = document.getElementById("logoutBtn");
-
-      const saveBtn = document.getElementById("saveBudgetBtn");
-      const saveHint = document.getElementById("saveHint");
-
-      const loadBtn = document.getElementById("loadBudgetBtn");
-      const loadHint = document.getElementById("loadHint");
-
-      const saveProfileBtn = document.getElementById("saveProfileBtn");
-      const profileHint = document.getElementById("profileHint");
-
-      if (user) {
-        status.innerText = "Signed in as " + user.displayName;
-        logoutBtn.style.display = "inline-block";
-
-        saveBtn.disabled = false;
-        saveHint.innerText = "You can save budgets to your account.";
-
-        loadBtn.disabled = false;
-        loadHint.innerText = "Load your last saved budget anytime.";
-
-        saveProfileBtn.disabled = false;
-        profileHint.innerText = "Preferences will sync to your account.";
-      } else {
-        status.innerText = "Not signed in";
+      if (!currentUser) {
+        userStatus.innerText = "Not signed in";
         logoutBtn.style.display = "none";
 
-        saveBtn.disabled = true;
+        saveBudgetBtn.disabled = true;
         saveHint.innerText = "Sign in to save your budget.";
 
-        loadBtn.disabled = true;
+        loadBudgetBtn.disabled = true;
         loadHint.innerText = "Sign in to load saved budgets.";
 
         saveProfileBtn.disabled = true;
         profileHint.innerText = "Sign in to save preferences.";
 
-        // reset gating visuals
+        subscribeBtn.disabled = true;
+        manageBtn.disabled = true;
+        manageBtn.style.display = "none";
+        premiumStatusText.innerText = "Sign in to subscribe.";
+
+        if (typeof unsubSubListener === "function") unsubSubListener();
         setPremium(false);
         return;
       }
 
-      // Load profile (and premium flag)
+      userStatus.innerText = "Signed in as " + currentUser.displayName;
+      logoutBtn.style.display = "inline-block";
+
+      saveBudgetBtn.disabled = false;
+      saveHint.innerText = "You can save budgets to your account.";
+
+      loadBudgetBtn.disabled = false;
+      loadHint.innerText = "Load your last saved budget anytime.";
+
+      saveProfileBtn.disabled = false;
+      profileHint.innerText = "Preferences will sync to your account.";
+
+      subscribeBtn.disabled = false;
+      premiumStatusText.innerText = "Checking subscription…";
+
+      // Load user preferences (profile) from users/{uid}
       await loadProfile();
 
-      // Auto-load last budget after sign in (silent)
-      await loadLastBudget(false);
+      // Listen to Stripe extension subscription status (customers/{uid}/subscriptions)
+      listenToSubscriptionStatus();
 
-      // If premium, refresh history
-      if (isPremium) {
-        await loadBudgetHistory();
-      }
+      // Auto-load last budget silently
+      await loadLastBudget(false);
     });
 
+    /* =========================
+       Premium gating
+       ========================= */
     function setPremium(enabled) {
       isPremium = !!enabled;
 
-      // Pills
-      document.getElementById("premiumPill").style.display = isPremium ? "inline-flex" : "none";
-      document.getElementById("premiumPillAccount").style.display = isPremium ? "inline-flex" : "none";
+      premiumPill.style.display = isPremium ? "inline-flex" : "none";
+      premiumPillAccount.style.display = isPremium ? "inline-flex" : "none";
 
       // Insights gating
-      document.getElementById("insightsGateLabel").innerText = isPremium ? "Unlocked" : "Premium feature";
-      document.getElementById("insightsLocked").style.display = isPremium ? "none" : "block";
-      document.getElementById("insights").style.display = isPremium ? "block" : "none";
+      insightsGateLabel.innerText = isPremium ? "Unlocked" : "Premium feature";
+      insightsLocked.style.display = isPremium ? "none" : "block";
+      insights.style.display = isPremium ? "block" : "none";
 
       // History gating
-      document.getElementById("historyGateLabel").innerText = isPremium ? "Unlocked" : "Premium feature";
-      document.getElementById("historyLocked").style.display = isPremium ? "none" : "block";
-      document.getElementById("history").style.display = isPremium ? "block" : "none";
+      historyGateLabel.innerText = isPremium ? "Unlocked" : "Premium feature";
+      historyLocked.style.display = isPremium ? "none" : "block";
+      history.style.display = isPremium ? "block" : "none";
     }
 
-    /* ---------- DATA (universities + city costs) ---------- */
-    let universities = [];
-    let cityCosts = {};
+    function listenToSubscriptionStatus() {
+      if (!currentUser) return;
 
+      if (typeof unsubSubListener === "function") unsubSubListener();
+
+      unsubSubListener = db
+        .collection("customers")
+        .doc(currentUser.uid)
+        .collection("subscriptions")
+        .onSnapshot((snap) => {
+          const active = snap.docs.some(d => {
+            const s = d.data();
+            return s.status === "active" || s.status === "trialing";
+          });
+
+          setPremium(active);
+
+          if (active) {
+            manageBtn.style.display = "inline-flex";
+            manageBtn.disabled = false;
+            premiumStatusText.innerText = "Premium active ✅";
+            loadBudgetHistory();
+          } else {
+            manageBtn.style.display = "none";
+            premiumStatusText.innerText = "Premium not active.";
+          }
+        }, (err) => {
+          console.error(err);
+          premiumStatusText.innerText = "Could not check subscription.";
+          setPremium(false);
+        });
+    }
+
+    /* =========================
+       Stripe Extension: Subscribe + Portal
+       ========================= */
+    subscribeBtn.addEventListener("click", startPremiumCheckout);
+    manageBtn.addEventListener("click", openCustomerPortal);
+
+    async function startPremiumCheckout() {
+      if (!currentUser) return alert("Please sign in first.");
+
+      try {
+        const docRef = await db
+          .collection("customers")
+          .doc(currentUser.uid)
+          .collection("checkout_sessions")
+          .add({
+            mode: "subscription",
+            price: PRICE_ID,
+            success_url: window.location.href,
+            cancel_url: window.location.href,
+          });
+
+        docRef.onSnapshot((snap) => {
+          const data = snap.data();
+          if (data?.error) alert(data.error.message || "Checkout error");
+          if (data?.url) window.location.assign(data.url);
+        });
+      } catch (e) {
+        console.error(e);
+        alert("Could not start checkout: " + e.message);
+      }
+    }
+
+    async function openCustomerPortal() {
+      if (!currentUser) return alert("Please sign in first.");
+
+      try {
+        const fn = functions.httpsCallable("ext-firestore-stripe-payments-createPortalLink");
+        const res = await fn({ returnUrl: window.location.href });
+
+        if (res?.data?.url) window.location.assign(res.data.url);
+        else alert("Could not open portal.");
+      } catch (e) {
+        console.error(e);
+        alert("Portal error: " + e.message);
+      }
+    }
+
+    /* =========================
+       Universities data
+       ========================= */
     Promise.all([
       fetch("universities.json").then(r => r.json()),
       fetch("cityCosts.json").then(r => r.json())
@@ -369,62 +527,53 @@
       universities = u;
       cityCosts = c;
 
-      // Calculator dropdown
-      const uniSelect = document.getElementById("uni");
-      uniSelect.innerHTML = "";
-
-      // Preferences dropdown
-      const prefUniSelect = document.getElementById("prefUni");
-      prefUniSelect.innerHTML = "";
+      uni.innerHTML = "";
+      prefUni.innerHTML = "";
 
       universities.forEach((uniObj, i) => {
         const opt1 = document.createElement("option");
         opt1.value = i;
         opt1.textContent = uniObj.name;
-        uniSelect.appendChild(opt1);
+        uni.appendChild(opt1);
 
         const opt2 = document.createElement("option");
         opt2.value = i;
         opt2.textContent = uniObj.name;
-        prefUniSelect.appendChild(opt2);
+        prefUni.appendChild(opt2);
       });
     }).catch(err => {
       console.error(err);
-      document.getElementById("uni").innerHTML = "<option>Failed to load universities</option>";
-      document.getElementById("prefUni").innerHTML = "<option>Failed to load universities</option>";
+      uni.innerHTML = "<option>Failed to load universities</option>";
+      prefUni.innerHTML = "<option>Failed to load universities</option>";
     });
 
-    /* ---------- PROFILE ---------- */
+    /* =========================
+       Profile (preferences)
+       ========================= */
     async function loadProfile() {
       if (!currentUser) return;
 
       const uid = currentUser.uid;
       const userDocRef = db.collection("users").doc(uid);
-
       const snap = await userDocRef.get();
-      const data = snap.exists ? snap.data() : null;
+      const data = snap.exists ? snap.data() : {};
 
-      // Default profile if missing
-      const profile = data?.profile || {};
-      const premiumFlag = !!data?.premium;
+      const profile = data.profile || {};
 
-      setPremium(premiumFlag);
-
-      // Fill preference fields
+      // fill fields
       if (typeof profile.defaultUniIndex === "number") prefUni.value = profile.defaultUniIndex;
-      if (profile.defaultFood) prefFood.value = profile.defaultFood;
+      if (profile.defaultFood != null) prefFood.value = String(profile.defaultFood);
       if (typeof profile.defaultNights === "number") prefNights.value = profile.defaultNights;
       if (typeof profile.defaultSubscriptions === "number") prefSubs.value = profile.defaultSubscriptions;
 
-      // Also apply to calculator if empty
+      // apply to calculator if empty
       applyPreferencesToCalculator(profile, { onlyIfEmpty: true });
     }
 
+    saveProfileBtn.addEventListener("click", saveProfile);
+
     async function saveProfile() {
-      if (!currentUser) {
-        alert("Please sign in to save preferences.");
-        return;
-      }
+      if (!currentUser) return alert("Please sign in to save preferences.");
 
       const uid = currentUser.uid;
       const userDocRef = db.collection("users").doc(uid);
@@ -438,12 +587,7 @@
       };
 
       try {
-        await userDocRef.set(
-          { profile },
-          { merge: true }
-        );
-
-        // Apply immediately
+        await userDocRef.set({ profile }, { merge: true });
         applyPreferencesToCalculator(profile, { onlyIfEmpty: false });
         alert("Preferences saved ✅");
       } catch (e) {
@@ -459,7 +603,7 @@
         if (!onlyIfEmpty || uni.value === "" || uni.value == null) uni.value = profile.defaultUniIndex;
       }
       if (profile.defaultFood != null) {
-        if (!onlyIfEmpty || food.value === "" || food.value == null) food.value = profile.defaultFood;
+        if (!onlyIfEmpty || food.value === "" || food.value == null) food.value = String(profile.defaultFood);
       }
       if (typeof profile.defaultNights === "number") {
         if (!onlyIfEmpty || !nights.value) nights.value = profile.defaultNights;
@@ -469,8 +613,10 @@
       }
     }
 
-    /* ---------- CALCULATOR ---------- */
-    let lastCalculated = null;
+    /* =========================
+       Calculator
+       ========================= */
+    calcBtn.addEventListener("click", calculateBudget);
 
     function calculateBudget() {
       const loanVal = Number(loan.value) || 0;
@@ -482,7 +628,7 @@
       const weeklyIncome = loanVal / 52 + wageVal / 4 + personalVal / 52;
       const weeklySubs = subsVal / 4;
 
-      const uniObj = universities[uni.value];
+      const uniObj = universities[Number(uni.value)];
       if (!uniObj) {
         result.innerText = "Please select a university.";
         tips.innerHTML = "";
@@ -513,16 +659,16 @@
       }
       tips.innerHTML = (balance < 30 && tipsText) ? `💡 <strong>Money-saving tips:</strong><br>${tipsText}` : "";
 
-      // Premium insights (only show if premium)
+      // Premium insights
       if (isPremium) {
         const spent = Math.max(nightTotal + foodCost + weeklySubs, 0);
         const left = Math.max(weeklyIncome - spent, 0);
         const denom = Math.max(weeklyIncome, 1);
 
-        setBar("barNights", nightTotal / denom);
-        setBar("barFood", foodCost / denom);
-        setBar("barSubs", weeklySubs / denom);
-        setBar("barLeft", left / denom);
+        setBar(barNights, nightTotal / denom);
+        setBar(barFood, foodCost / denom);
+        setBar(barSubs, weeklySubs / denom);
+        setBar(barLeft, left / denom);
 
         valNights.innerText = `£${nightTotal.toFixed(2)}`;
         valFood.innerText = `£${foodCost.toFixed(2)}`;
@@ -536,7 +682,6 @@
           "Your biggest cost is subscriptions. Consider cancelling what you don’t use.";
       }
 
-      // Store last calculation for saving
       lastCalculated = {
         createdAt: new Date().toISOString(),
         inputs: {
@@ -560,9 +705,9 @@
       };
     }
 
-    function setBar(id, ratio) {
+    function setBar(node, ratio) {
       const pct = Math.max(0, Math.min(1, ratio)) * 100;
-      document.getElementById(id).style.width = pct.toFixed(1) + "%";
+      node.style.width = pct.toFixed(1) + "%";
     }
 
     function maxKey(obj) {
@@ -573,21 +718,19 @@
       return bestK;
     }
 
-    /* ---------- SAVE / LOAD ---------- */
+    /* =========================
+       Save / Load budgets
+       ========================= */
+    saveBudgetBtn.addEventListener("click", saveBudget);
+    loadBudgetBtn.addEventListener("click", () => loadLastBudget(true));
+
     async function saveBudget() {
-      if (!currentUser) {
-        alert("Please sign in to save your budget.");
-        return;
-      }
-      if (!lastCalculated) {
-        alert("Calculate your budget first, then save it.");
-        return;
-      }
+      if (!currentUser) return alert("Please sign in to save your budget.");
+      if (!lastCalculated) return alert("Calculate your budget first, then save it.");
 
       try {
-        const uid = currentUser.uid;
         await db.collection("users")
-          .doc(uid)
+          .doc(currentUser.uid)
           .collection("budgets")
           .add({
             ...lastCalculated,
@@ -595,80 +738,73 @@
           });
 
         alert("Saved ✅");
-
-        // If premium, refresh history list immediately
-        if (isPremium) await loadBudgetHistory();
+        if (isPremium) loadBudgetHistory();
       } catch (e) {
         console.error(e);
         alert("Saving failed: " + e.message);
       }
     }
 
-    // If showUI = true, it prints status and navigates. If false, it's silent auto-load.
     async function loadLastBudget(showUI) {
       if (!currentUser) return;
 
-      const statusEl = document.getElementById("loadStatus");
-      if (showUI) statusEl.innerText = "Loading…";
+      if (showUI) loadStatus.innerText = "Loading…";
 
       try {
-        const uid = currentUser.uid;
         const snap = await db.collection("users")
-          .doc(uid)
+          .doc(currentUser.uid)
           .collection("budgets")
           .orderBy("savedAt", "desc")
           .limit(1)
           .get();
 
         if (snap.empty) {
-          if (showUI) statusEl.innerText = "No saved budgets yet.";
+          if (showUI) loadStatus.innerText = "No saved budgets yet.";
           return;
         }
 
         const data = snap.docs[0].data();
 
-        // Restore inputs
         loan.value = data.inputs?.loanPerYear ?? 0;
         wage.value = data.inputs?.wagePerMonth ?? 0;
         personal.value = data.inputs?.personalFunds ?? 0;
         subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
         nights.value = data.inputs?.nightsOutPerWeek ?? 0;
-        food.value = data.inputs?.foodPerWeek ?? 25;
+        food.value = String(data.inputs?.foodPerWeek ?? 25);
 
         if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
 
-        // Recalculate outputs
         calculateBudget();
 
         if (showUI) {
-          statusEl.innerText = "Loaded ✅";
+          loadStatus.innerText = "Loaded ✅";
           showPage("calculator");
         }
       } catch (e) {
         console.error(e);
-        if (showUI) statusEl.innerText = "";
+        if (showUI) loadStatus.innerText = "";
         if (showUI) alert("Load failed: " + e.message);
       }
     }
 
-    /* ---------- HISTORY (premium) ---------- */
+    /* =========================
+       Budget history (Premium)
+       ========================= */
     async function loadBudgetHistory() {
       if (!currentUser || !isPremium) return;
 
-      const uid = currentUser.uid;
-      const listEl = document.getElementById("historyList");
-      listEl.innerHTML = `<div class="muted small">Loading history…</div>`;
+      historyList.innerHTML = `<div class="muted small">Loading history…</div>`;
 
       try {
         const snap = await db.collection("users")
-          .doc(uid)
+          .doc(currentUser.uid)
           .collection("budgets")
           .orderBy("savedAt", "desc")
           .limit(10)
           .get();
 
         if (snap.empty) {
-          listEl.innerHTML = `<div class="muted small">No saved budgets yet.</div>`;
+          historyList.innerHTML = `<div class="muted small">No saved budgets yet.</div>`;
           return;
         }
 
@@ -688,16 +824,22 @@
               </div>
               <div class="history-right">
                 <div class="history-balance">£${Number(balance).toFixed(2)}</div>
-                <button class="secondary history-btn" onclick="loadBudgetById('${doc.id}')">Load</button>
+                <button class="secondary history-btn" data-budget-id="${doc.id}">Load</button>
               </div>
             </div>
           `);
         });
 
-        listEl.innerHTML = rows.join("");
+        historyList.innerHTML = rows.join("");
+
+        // attach load handlers
+        historyList.querySelectorAll("button[data-budget-id]").forEach(btn => {
+          btn.addEventListener("click", () => loadBudgetById(btn.getAttribute("data-budget-id")));
+        });
+
       } catch (e) {
         console.error(e);
-        listEl.innerHTML = `<div class="muted small">Failed to load history.</div>`;
+        historyList.innerHTML = `<div class="muted small">Failed to load history.</div>`;
       }
     }
 
@@ -705,8 +847,7 @@
       if (!currentUser || !isPremium) return;
 
       try {
-        const uid = currentUser.uid;
-        const docRef = db.collection("users").doc(uid).collection("budgets").doc(docId);
+        const docRef = db.collection("users").doc(currentUser.uid).collection("budgets").doc(docId);
         const snap = await docRef.get();
         if (!snap.exists) return;
 
@@ -717,7 +858,7 @@
         personal.value = data.inputs?.personalFunds ?? 0;
         subscriptions.value = data.inputs?.subscriptionsPerMonth ?? 0;
         nights.value = data.inputs?.nightsOutPerWeek ?? 0;
-        food.value = data.inputs?.foodPerWeek ?? 25;
+        food.value = String(data.inputs?.foodPerWeek ?? 25);
         if (typeof data.inputs?.uniIndex === "number") uni.value = data.inputs.uniIndex;
 
         calculateBudget();
@@ -734,26 +875,25 @@
       }[s]));
     }
 
-    /* ---------- NAVIGATION ---------- */
+    /* =========================
+       Navigation
+       ========================= */
     const pages = ["home", "calculator", "account"];
     document.querySelectorAll(".nav-link").forEach(btn => {
       btn.addEventListener("click", () => showPage(btn.dataset.page));
     });
 
     function showPage(p) {
-      pages.forEach(x =>
-        document.getElementById("page-" + x).classList.toggle("active", x === p)
-      );
-      document.querySelectorAll(".nav-link").forEach(b =>
-        b.classList.toggle("active", b.dataset.page === p)
-      );
+      pages.forEach(x => el("page-" + x).classList.toggle("active", x === p));
+      document.querySelectorAll(".nav-link").forEach(b => b.classList.toggle("active", b.dataset.page === p));
       window.scrollTo(0, 0);
     }
 
-    document.getElementById("go-calc").onclick = () => showPage("calculator");
-    document.getElementById("go-account").onclick = () => showPage("account");
+    el("go-calc").addEventListener("click", () => showPage("calculator"));
+    el("go-account").addEventListener("click", () => showPage("account"));
   </script>
 </body>
 </html>
+
 
 
